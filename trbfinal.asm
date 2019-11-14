@@ -6,6 +6,7 @@ data segment
     masterfile db "mastertext.txt",0
     handlers dw 8 dup(?),0
     nhandler db ?,0
+    masterh dw ?,0
     buffer db 3000 dup(?),0 
 ends
 
@@ -50,6 +51,7 @@ start:
         mov al, 0
         mov ah, 3Dh
         int 21h
+        mov masterh, ax 
         ret
       loadfiles endp
     
