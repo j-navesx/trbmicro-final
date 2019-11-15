@@ -1,0 +1,23 @@
+mov al, 1
+    	mov bh, 0
+    	mov bl, 0010_0000b
+    	mov cx, 3 
+    	mov dl, 0
+    	mov dh, 1
+    	mov bp, offset msg1
+    	mov ah, 13h
+    	int 10h
+    	
+    	mov ah, 1
+	    int 21h
+
+    	
+    	mov al, 1
+    	mov bh, 0
+    	mov bl, 0000_0010b
+    	mov cx, 3 
+    	mov dl, 0
+    	mov dh, 1
+    	mov bp, offset msg1
+    	mov ah, 13h
+    	int 10h
