@@ -1,14 +1,16 @@
 ; multi-segment executable file template.
 
 data segment
-    cdrive db "\",0
-    dir db "Files\",0
-    masterfile db "mastertext.txt",0
-    handlers dw 8 dup(?),0
-    nhandler dw ?,0
-    masterh dw ?,0
-    buffer db 300 dup(?),0
-    msg1 db "Hi!",0 
+    ;DATA
+      cdrive db "\",0
+      dir db "Files\",0
+      masterfile db "mastertext.txt",0
+      handlers dw 8 dup(?),0
+      nhandler dw ?,0
+      masterh dw ?,0
+      buffer db 300 dup(?),0
+      msg1 db "Hi!",0
+    ;END DATA 
 ends
 
 stack segment
@@ -37,6 +39,10 @@ start:
     
     ;PROCS
       
+      ;
+      ; cdir - Navigate to de C:\ directory
+      ;
+      
       cdir proc
         push ax
         push dx
@@ -48,6 +54,11 @@ start:
         ret
       cdir endp
       
+      ;
+      ; filesdir - Navigate to de C:\Files\ directory
+      ; NOTE: Necessary to navigate to C:\ directory first
+      ;
+           
       filesdir proc
         push ax
         push dx
@@ -59,6 +70,11 @@ start:
         ret
       filesdir endp
       
+      ;
+      ; loadfiles - loads all files located in mastertext.txt (if exists)
+      ;             if it doesn't exist create it  
+      ;
+      
       loadfiles proc
         push ax
         push dx
@@ -66,8 +82,10 @@ start:
         push si
         
         call filesdir
+        
         call loadmaster
         
+        ;Verification to see if there is any file in the mastertext.txt
         mov bx, masterh
         mov cx, 1
         mov dx, offset buffer
@@ -77,12 +95,14 @@ start:
         or al,al
         jz endloadf  
         
+        ;Moves to buffer all file names
         inc di
         mov cx, 199
         mov dx, di
         call fread
         mov di, offset buffer
         
+        ;Loop to open the handlers for the files registred in mastertext
         loopfiles:
           mov si, di
           mov ax, 0dh
@@ -109,11 +129,35 @@ start:
         ret
       loadfiles endp
       
+      addfile proc
+        
+        ret
+      addfile endp
+      
+      ;
+      ; fopen - opens a file
+      ; inputs:
+      ;   - Al: {0 - read; 1 - write; 2 - read/write;} 
+      ;   - [Dx]: Filename
+      ; outputs:
+      ;   - Ax: File handler
+      ; 
+      
       fopen proc
         mov ah, 3Dh
         int 21h       
         ret
       fopen endp
+      
+      ;
+      ; fread - reads from a file
+      ; inputs:
+      ;   -Bx: File handler
+      ;   -Cx: Bytes to read
+      ;   -[Dx]: Output
+      ; outputs:
+      ;   -Ax: Number of bytes read
+      ;
        
       fread proc
         push ax
@@ -123,6 +167,12 @@ start:
         ret
       fread endp
       
+      ;
+      ; loadmaster - loads mastertext.txt file or creates it
+      ; output:
+      ;   -Masterh(DATA): mastertext.txt file handler
+      ;
+      
       loadmaster proc
         mov dx, offset masterfile
         mov ax, 3D02h
@@ -131,10 +181,17 @@ start:
         mov masterh, ax
         jmp endloadmaster
         errorfne:
+          ;mastertext.txt file does not exist
           call masterinit
         endloadmaster:
         ret
       loadmaster endp
+      
+      ;
+      ; masterinit - creates mastertext.txt file
+      ; output:
+      ;   -Masterh(DATA): mastertext.txt file handler
+      ;
       
       masterinit proc
         push cx
@@ -145,6 +202,10 @@ start:
         pop cx
         ret  
       masterinit endp
+      
+      ;
+      ; ifword - 
+      ;
       
       ifword proc
         mov al, 0
