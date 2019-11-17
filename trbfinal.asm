@@ -8,8 +8,8 @@ data segment
       handlers dw 8 dup(?),0
       nhandler dw ?,0
       masterh dw ?,0
-      buffer db 300 dup(?),0
-      msg1 db "Hi!",0
+      bufferi db 300 dup(?),0
+      buffer db "lusiadas.txt$",20 dup(?),0
     ;END DATA 
 ends
 
@@ -24,10 +24,11 @@ start:
     mov ds, ax
     mov es, ax
 
-    ;CODE
+    ;CODE 
       
       call cdir
       call loadfiles
+      
       
       mov dx, handlers[0]
       mov bx, handlers[1]
@@ -40,7 +41,7 @@ start:
     ;PROCS
       
       ;
-      ; cdir - Navigate to de C:\ directory
+      ; cdir - Navigate to the C:\ directory
       ;
       
       cdir proc
@@ -55,7 +56,7 @@ start:
       cdir endp
       
       ;
-      ; filesdir - Navigate to de C:\Files\ directory
+      ; filesdir - Navigate to the C:\Files\ directory
       ; NOTE: Necessary to navigate to C:\ directory first
       ;
            
@@ -65,6 +66,13 @@ start:
         mov dx, offset dir
         mov ah, 3Bh
         int 21h
+        jc makedir
+        jmp exitfilesdir
+        makedir:
+          mov dx, offset dir
+          mov ah, 39h
+          int 21h
+        exitfilesdir:
         pop dx
         pop ax
         ret
@@ -105,7 +113,7 @@ start:
         ;Loop to open the handlers for the files registred in mastertext
         loopfiles:
           mov si, di
-          mov ax, 0dh
+          mov ax, "$"
           repne scasb
           dec di
           mov byte ptr di, 0
@@ -117,7 +125,7 @@ start:
           mov handlers[di], ax
           pop di
           inc nhandler
-          add di, 2
+          add di, 3
           cmp byte ptr di, 0
           jnz loopfiles 
         endloadf:
@@ -129,10 +137,84 @@ start:
         ret
       loadfiles endp
       
+      ;
+      ; addfile - add a file to mastertext.txt and open it
+      ; Inputs:
+      ;   -Buffer: name of the file you want to write (has to terminate in 0)
+      ;
+      
       addfile proc
+        mov dx, offset buffer
+        mov al, 0
+        call fopen
+        jc filenotexist
+          
+          push di
+          mov di, nhandler
+          mov handlers[di], ax
+          pop di
+          inc nhandler
+          
+          mov bx, masterh
+          call sizebuffer
+          call fwrite
         
+        jmp endaddfile
+        filenotexist:
+          mov bx, ax
+          call fclose
+          jmp endaddfile
+        endaddfile:        
         ret
       addfile endp
+      
+      fclose proc
+        mov ah, 3Eh
+        int 21h
+        ret
+      fclose endp
+      
+      ;
+      ; fwrite - writes to a file
+      ; Inputs:
+      ;   -Bx: File handler
+      ;   -Cx: Number of bytes to write
+      ;   -[Dx]: Buffer
+      ;
+      
+      fwrite proc
+        mov ah, 40h
+        int 21h
+        ret
+      fwrite endp
+      
+      ;
+      ; sizebuffer - gives you the size of the first word in the buffer
+      ; Outputs:
+      ;   -Cx: Size of first word + $ + 0dH + 0aH
+      ;
+      
+      sizebuffer proc
+        push ax
+        push di
+        mov cx, 26
+        mov di, offset buffer
+        mov ax, 0
+        repne scasb
+        mov ax, cx
+        mov cx, 25
+        sub cx, ax
+        add cx, 3
+        inc di
+        mov byte ptr di, 0Ah
+        dec di
+        mov byte ptr di, 0Dh
+        dec di
+        mov byte ptr di, "$"
+        pop di
+        pop ax
+        ret
+      sizebuffer endp
       
       ;
       ; fopen - opens a file
@@ -160,10 +242,8 @@ start:
       ;
        
       fread proc
-        push ax
         mov ah, 3Fh
         int 21h
-        pop ax
         ret
       fread endp
       
@@ -175,8 +255,8 @@ start:
       
       loadmaster proc
         mov dx, offset masterfile
-        mov ax, 3D02h
-        int 21h
+        mov al, 2
+        call fopen
         jc errorfne:
         mov masterh, ax
         jmp endloadmaster
