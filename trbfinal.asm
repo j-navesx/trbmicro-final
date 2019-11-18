@@ -8,8 +8,7 @@ data segment
       handlers dw 8 dup(?),0
       nhandler dw ?,0
       masterh dw ?,0
-      bufferi db 300 dup(?),0
-      buffer db "lusiadas.txt$",20 dup(?),0
+      buffer db 300 dup(?),0
     ;END DATA 
 ends
 
@@ -63,6 +62,7 @@ start:
       filesdir proc
         push ax
         push dx
+        dirchecker:
         mov dx, offset dir
         mov ah, 3Bh
         int 21h
@@ -72,6 +72,7 @@ start:
           mov dx, offset dir
           mov ah, 39h
           int 21h
+          jmp dirchecker
         exitfilesdir:
         pop dx
         pop ax
@@ -134,6 +135,7 @@ start:
         pop di
         pop dx
         pop ax
+        call cdir
         ret
       loadfiles endp
       
@@ -144,6 +146,7 @@ start:
       ;
       
       addfile proc
+        call filesdir
         mov dx, offset buffer
         mov al, 0
         call fopen
@@ -164,7 +167,8 @@ start:
           mov bx, ax
           call fclose
           jmp endaddfile
-        endaddfile:        
+        endaddfile:
+        call cdir        
         ret
       addfile endp
       
