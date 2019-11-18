@@ -20,22 +20,35 @@ start:
     mov ds, ax
     mov es, ax
                 
-    mov ah, 2Ah
-    int 21h
-    
-    mov ano, cx 
-    mov mes, dh 
-    mov dia, dl
-    
-    mov ah, 2Ch
-    int 21h
-    
-    mov hora, ch
-    mov min, cl
-    mov sec, dh 
+     
     
     mov ax, 4c00h ; exit to operating system.
     int 21h    
-ends
+ends 
+
+    GetDate proc
+      push ax
+      push cx
+      push dx
+      
+      mov ah, 2Ah
+      int 21h
+      
+      mov ano, cx 
+      mov mes, dh 
+      mov dia, dl
+      
+      mov ah, 2Ch
+      int 21h
+      
+      mov hora, ch
+      mov min, cl
+      mov sec, dh
+      
+      pop dx
+      pop cx
+      pop ax
+      ret
+    GetDate endp
 
 end start ; set entry point and stop the assembler.
