@@ -8,6 +8,7 @@ data segment
       handlers dw 8 dup(?),0
       nhandler dw ?,0
       masterh dw ?,0
+      currentpage db ?,0
       buffer db 300 dup(?),0
     ;END DATA 
 ends
@@ -25,12 +26,16 @@ start:
 
     ;CODE 
       
-      call cdir
-      call loadfiles
+      mov cx, 0
+      mov bx, 1
+      call readtobuffer
+      
+      ;call cdir
+      ;call loadfiles
       
       
-      mov dx, handlers[0]
-      mov bx, handlers[1]
+      ;mov dx, handlers[0]
+      ;mov bx, handlers[1]
       
       mov ax, 4c00h
       int 21h
@@ -306,6 +311,77 @@ start:
        notword:  
         ret
       ifword endp
+      
+      ;
+      ; readtobuffer - reads from the screen to buffer
+      ; Inputs:
+      ;   Cx: 0-for free reading(buffer size) ; Other number-Cx number of characters
+      ;   Bx: 0-terminates in 0 ; 1-terminates in $
+      ; Outputs:
+      ;   Buffer[DATA]: string
+      ;       
+      
+      readtobuffer proc
+        push ax
+        push di
+        or cx,cx
+        jz freereading
+        mov di, 0002h
+        readingloop:
+          or cx,cx
+          jz terminate
+          dec cx
+          mov ah, 00h
+          int 16h
+          cmp ah, 4Bh
+          jz inesquerda
+          cmp ah, 4Dh
+          jz indireita
+          mov buffer[di], al
+          inc di
+          ;ADICIONAR COMPARES DE SETAS
+          ;inesquerda: 4Bh
+          ;indireita: 4Dh
+          ;outesquerda: 1Bh
+          ;outdireita: 1Ah
+          jmp readingloop
+          inesquerda:
+            mov buffer[di], 1Bh
+            inc di
+            jmp readingloop
+          indireita:
+            mov buffer[di], 1Ah
+            inc di
+            jmp readingloop
+        freereading:
+          mov buffer[0], 0FFh
+          mov buffer[1], 00h
+          mov dx, offset buffer
+		      mov ah, 0ah
+		      int 21h
+		      mov dx, 0
+		      mov dl, buffer[1]
+		      add di, dx
+        terminate:
+          mov cx, 4
+          cmp bx, 0
+          jz end0
+          endd:
+            mov buffer[cx+i+2], "$"
+            jmp endreading
+          end0:
+            mov buffer[cx+di+2], 0   
+        endreading:
+        mov buffer[0], 07h
+        mov buffer[1], 07h
+        pop di
+        pop ax
+        ret
+      readtobuffer endp
+      
+      writestrpage proc
+        ret
+      writestrpage endp
       
     ;END PROCS
     
