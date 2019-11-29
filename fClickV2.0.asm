@@ -7,6 +7,11 @@ data segment
     yourFilesMSG db "YOUR FILES$"
     exitMSG db "EXIT$"
     
+    nLine db ?
+    Xmouse dw ?
+    Ymouse dw ?
+    dif db ?
+    
 ;.....temporary variables.....;
     op1 db "option 1$"
     op2 db "option 2$"
@@ -28,10 +33,26 @@ start:
     mov ds, ax
     mov es, ax
   
+;..........NAVES' CODE........;
+;
+;LOOP THAT PRINTS ICON DIRECTLY FROM BUFFER
+
+;por acabar...    
+;    loopIcon:
+;    mov al, 1
+;    cmp al, 4
+;    jz endLoopIcon
+;    mov dx, offset buffer
+;    mov cx, 299
+;    mov bx, [handler do skull.txt]
+;    call fread
+;    mov buffer[300], $
+    
+;    endLoopIcon:
 ;SET CURSOR POSITION
 ;INPUTS: DH: row
 ;        DL: column
-;        BH: page number (0-7)
+;        BH: page number (0-7)    
     
     mov ah, 02h
     mov bh, 0h
@@ -60,13 +81,15 @@ start:
     mov si, offset exitMSG
     call printf
       
-    call mouseLoop  
+    call mousePos  
   
     mov ah,4Ch  ;stop program
     int 21h
 code ends
 
 ;FUNTIONS TO PRINT A STRING ON SCREEN
+
+;a ser alterado para fprint do Naves...
 printf proc
     loop1:
     mov al,byte ptr [si]
@@ -90,88 +113,72 @@ co proc
 endp 
 
 
-;FUNTION CHECKS THE OPTION PRESSED ON SCREEN
-;VARIABLES: BX: button pressed (01h-left button, 02h-right button, 03h-both buttons)
-;           CX: column
-;           DX: row
 
-mouseLoop proc 
-    
-;.....returns current mouse position & button pressed.....;
-    mouselp:
+;FUNTION gets mouse position and verifies button used if LEFT  
+;input: BX: button pressed (01h-left button, 02h-right button, 03h-both buttons)
+;       CX: column
+;       DX: row
+
+mousePos proc 
+    mLoop:
     mov ax, 03h
     int 33h
     cmp bx, 01h
-    jz clicked
-    jmp mouselp
-;.........................................................;
-    
-    clicked:
-    cmp dx, 0078h
-    jb NOTstart
-    cmp dx, 007Eh
-    ja NOTstart
-    jmp startChecked
-    
-    NOTstart:
-    cmp dx, 0088h
-    jb NOTnewFile
-    cmp dx, 008Eh
-    ja NOTnewFile 
-    jmp newFileChecked
-    
-    NOTnewFile:  
-    cmp dx, 0098h
-    jb NOTyourFiles
-    cmp dx, 009Eh
-    ja NOTyourFiles
-    jmp yourFilesChecked
-    
-    NOTyourFiles:
-    cmp dx, 00A8h
-    jb mouselp  
-    cmp dx, 00AEh
-    ja mouselp
-    jmp exitChecked
-    
-    startChecked:
-    cmp cx, 0127h
-    jb mouselp
-    cmp cx, 014Eh
-    ja mouselp
-    call STARTbt  
-    jmp endMouselp 
-    
-    newFileChecked:
-    cmp cx, 0102h
-    jb mouselp
-    cmp cx, 0177h
-    ja mouselp
-    call NEWFILE
-    jmp endMouselp
-    
-    yourFilesChecked:
-    cmp cx, 0107h
-    jb mouselp
-    cmp cx, 015Dh
-    ja mouselp
-    call YOURFILES
-    jmp endMouselp
-    
-    exitChecked:
-    cmp cx, 0128h
-    jb mouselp
-    cmp cx, 0145h
-    ja mouselp
-    call EXIT
-    jmp endMouselp
-    
-    endMouselp: 
+    jz leftClick
+    jmp mLoop
+    leftClick:
+    mov Xmouse, cx
+    mov Ymouse, dx
+    call selectLine 
     ret
+endp 
 
+
+
+;FUNCTION RETURNS LINE NUMBER SELECTED 
+;input: Xmouse
+;       Ymouse  
+
+selectLine proc        
+    mov ax, Ymouse
+    mov bl, 8       ;pixel number for character's height
+    div bl          ;AL = nLine(AX)/8(BL)
+    mov nLine, al
+    call clickOption
+    ret             ;resultado: linha selecionada guardado em nLine
 endp
 
-
+clickOption proc
+    cmp nLine, 0Fh
+    jz clkstart
+    
+    notStart:
+    cmp nLine, 11h
+    jz newFile
+    
+    notNewFile:         
+    cmp nLine, 13h
+    jz yourFiles
+    
+    notYourFiles:
+    cmp nLine, 15h
+    jz exit
+    
+    clkstart:
+    call STARTbt
+    ret
+    newFile:
+    call NEWFILEbt
+    ret
+    yourFiles:
+    call YOURFILESbt
+    ret
+    exit:
+    call EXITbt
+    ret
+     
+endp 
+ 
 ;FUNTIONS OF EACH OPTION BUTTON
 ;
 ;.........edit here..........;
@@ -179,44 +186,28 @@ endp
 ;PRINTS NUM. OPTION (1,2,3 or 4)
 ; 
 STARTbt proc
-    mov ah, 02h   
-    mov dh, 05h  
-    mov dl, 18h 
-    int 10h
-    
+   
     mov si, offset op1 
     call printf
     ret
 endp
 
-NEWFILE proc
-    mov ah, 02h   
-    mov dh, 09h  
-    mov dl, 18h 
-    int 10h
+NEWFILEbt proc
     
     mov si, offset op2
     call printf
     ret
 endp
 
-YOURFILES proc
-    mov ah, 02h   
-    mov dh, 09h  
-    mov dl, 18h 
-    int 10h
+YOURFILESbt proc
     
     mov si, offset op3
     call printf
     ret
 endp
 
-EXIT proc
-    mov ah, 02h   
-    mov dh, 09h  
-    mov dl, 18h 
-    int 10h
-    
+EXITbt proc
+ 
     mov si, offset op4
     call printf
     ret
