@@ -6,6 +6,7 @@ data segment
       dir db "Files\",0
       masterfile db "mastertext.txt",0
       filealternator db "$$$$$$$$$$$$$$$$$$$$$$$$$",0
+      startstr db 5,"START",0
       handlers dw 8 dup(?),0
       nhandler db ?,0
       masterh dw ?,0
@@ -27,30 +28,62 @@ start:
     mov es, ax
 
     ;CODE 
-       mov currentpage, 0
-       call cdir
-       call loadfiles
-       mov si, 0
-       mov dx, 0000h
-       call printtxtnames
-       
-;      mov cx, 0
-;      mov bx, 1
-;      call readtobuffer
       
-;      call cdir
-;      call loadfiles
-;      
-;      
-;      mov dx, handlers[0]
-;      mov bx, handlers[1]
+      mov currentpage, 0
+      call cdir
+      call loadfiles
+      call cdir
+      call Menu
       
+      ;mov currentpage, 1
+      ;call changepage
+      ;call Game
+            
       mov ax, 4c00h
       int 21h
       
     ;END CODE
     
     ;PROCS
+      
+      Menu proc
+        Menuinicial:
+          cmp nhandler, 3
+          jl nostart
+          mov bl, 0000_1010b
+          jmp inicialprint
+          nostart:
+          mov bl, 0000_0010b
+          inicialprint:
+            mov al, 1
+            
+            mov dh, 15
+            mov dl, 38
+            mov bp, offset startstr
+            call writestrpagews
+            
+;            mov dh,
+;            mov dl,
+;            mov bp,
+;            call writestrpagens
+              
+        ret
+      Menu endp
+      
+      Game proc
+        ret
+      Game endp
+      
+      ;
+      ; changepage - changes visible video page
+      ;
+      
+      changepage proc
+        mov al, currentpage
+        mov ah, 05h
+        int 10h
+        ret
+      changepage endp
       
       ;
       ; cdir - Navigate to the C:\ directory
@@ -204,6 +237,10 @@ start:
         ret
       addfile endp
       
+      ;
+      ; fclose - closes a file
+      ;
+      
       fclose proc
         mov ah, 3Eh
         int 21h
@@ -225,9 +262,11 @@ start:
       fwrite endp
       
       ;
-      ; sizebuffer - gives you the size of the first word in the buffer
-      ; Outputs:
-      ;   -Cx: Size of first word + $
+      ; sizebuffer - gives you the size of a word in the buffer
+      ;   Inputs:
+      ;     -Si: Offset of the word
+      ;   Outputs:
+      ;     -Cx: Size of the word + $
       ;
       
       sizebuffer proc
@@ -236,11 +275,13 @@ start:
         mov cx, 300
         mov di, offset buffer
         add di, si
+        
         mov ax, "$"
         repne scasb
         mov ax, cx
         mov cx, 299
         sub cx, ax
+        
         pop di
         pop ax
         ret
@@ -404,20 +445,44 @@ start:
         ret
       readtobuffer endp
       
+      ;
+      ;
+      ;   Inputs:
+      ;     -Al - 1: Var selection; 0: Buffer with cursor selection; else: Buffer without cursor selection
+      
       writestrpagews proc
-        mov al, 1
-        mov bh, currentpage
-        mov bp, offset buffer
-        add bp, si
-        call sizebuffer
-        mov ah, 13h
-        int 10h
-        inc cx
+        cmp al, 1
+        jz nobuffer
+        cmp al, 0
+        jnz nocursorchange
+        call selcursorpos
+        nocursorchange:
+          mov bh, currentpage
+          mov bp, offset buffer
+          add bp, si
+          call sizebuffer
+          jmp writews
+        nobuffer:
+          call selcursorpos
+          ;LAYOUT DA VAR var db 5,"START",0
+          xor cx, cx
+          mov di, bp
+          mov cl, byte ptr di
+          inc bp
+        writews:
+          mov ah, 13h
+          int 10h
+          inc cx
         ret
       writestrpagews endp
       
+      ;
+      ;
+      ;
+      
       writestrpagens proc
         cmp al,0
+        mov dx, bp
         jnz noselpos
         noselpos:
           mov dx, offset buffer
@@ -427,12 +492,20 @@ start:
         ret
       writestrpagens endp
       
+      ;
+      ;
+      ;
+      
       selcursorpos proc
         mov bh, currentpage
         mov ah, 02h
         int 10h
         ret
       selcursorpos endp
+      
+      ;
+      ;
+      ;
       
       printtxtnames proc 
         call selcursorpos
@@ -448,6 +521,10 @@ start:
           jnz looptxts  
         ret
       printtxtnames endp
+      
+      ;
+      ;
+      ;
       
       space proc
         mov ah, 2
