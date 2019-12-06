@@ -7,6 +7,9 @@ data segment
       masterfile db "mastertext.txt",0
       filealternator db "$$$$$$$$$$$$$$$$$$$$$$$$$",0
       startstr db 5,"START",0
+      addfilestr db 8,"ADD FILE",0
+      loadfilestr db 10,"LIST FILES",0
+      exitstr db 4,"EXIT",0
       handlers dw 8 dup(?),0
       nhandler db ?,0
       masterh dw ?,0
@@ -47,30 +50,71 @@ start:
     ;PROCS
       
       Menu proc
-        Menuinicial:
-          cmp nhandler, 3
-          jl nostart
+      
+        mov currentpage, 0
+        call changepage
+        cmp nhandler, 3
+        jl nostart
+        mov bl, 0000_1010b
+        jmp inicialprint
+        nostart:
+        mov bl, 0000_0010b
+        inicialprint:
+          mov al, 1
+          mov dh, 15
+          mov dl, 36
+          mov bp, offset startstr
+          call writestrpagews
+          
           mov bl, 0000_1010b
-          jmp inicialprint
-          nostart:
-          mov bl, 0000_0010b
-          inicialprint:
-            mov al, 1
+          
+          mov dh, 16
+          mov dl, 35
+          mov bp, offset addfilestr
+          call writestrpagews
+          
+          mov dh, 17
+          mov dl, 34
+          mov bp, offset loadfilestr
+          call writestrpagews
+          
+          mov dh, 18
+          mov dl, 37
+          mov bp, offset exitstr
+          call writestrpagews
+       
+         call mouseinit
+         MenuInicial:
+          mov currentpage, 0
+          call changepage
+         
+         MouseLoop:
+          call click
+          cmp al, 15
+          jz cStart
+          cmp al, 16
+          jz cAddFile
+          cmp al, 17
+          jz cListFile
+          cmp al, 18
+          jz cExit
+          jmp MouseLoop
+         
+         cAddFile:
+          call AddFile
+          jmp MenuInicial
+         
+         cStart:
+          cmp nhandler, 3
+          ja continueStart
+          jmp mouseloop
+          continueStart:
+            mov currentpage, 1
+            call changepage
+            call Game
+            jmp MouseLoop
             
-            mov dh, 15
-            mov dl, 38
-            mov bp, offset startstr
-            call writestrpagews
-            
-            mov al, 1
-            mov dh, 16
-            mov dl, 33
-            call writestrpagens           
-;            mov dh,
-;            mov dl,
-;            mov bp,
-;            call writestrpagens
-              
+        EndMenu:      
         ret
       Menu endp
       
@@ -177,12 +221,14 @@ start:
           add di, 25
           
           push di
+          push ax
           push bx
           mov bl, 2
           mov al, nhandler
           mul bl
           pop bx
           mov di, ax
+          pop ax
           mov handlers[di], ax
           pop di
           inc nhandler
@@ -536,6 +582,35 @@ start:
       	int 21h
         ret
       space endp
+      
+      click proc 
+        mLoop:
+        mov ax, 03h
+        int 33h
+        cmp bx, 00h     ;;;;MUDAR AQUIIII para qualquer mouse button
+        jnz lClick
+        jmp mLoop
+        lClick:
+        
+        ;converte posicao em pixeis para nlinha
+        mov ax, dx
+        mov bl, 8       ;pixel number for character's height
+        div bl
+        mov dl, al
+        mov ax, cx
+        div bl
+        mov ah, dl          ;AH - n de linhas AL - n de colunas
+        call clickOption;AQUI COMECA AS COMPARACOES NLINHA/FUNCAO BOTAO
+        ret 
+      click endp
+      
+      mouseinit proc
+        push ax
+        mov ax, 0
+        int 33h
+        pop ax
+        ret
+      mouseinit endp
       
       
     ;END PROCS
