@@ -5,11 +5,14 @@ data segment
       cdrive db "\",0
       dir db "Files\",0
       masterfile db "mastertext.txt",0
+      filealternator db "$$$$$$$$$$$$$$$$$$$$$$$$$",0
+      startstr db 5,"START",0
       handlers dw 8 dup(?),0
-      nhandler dw ?,0
+      nhandler db ?,0
       masterh dw ?,0
       currentpage db ?,0
       buffer db 300 dup(?),0
+       
     ;END DATA 
 ends
 
@@ -26,23 +29,65 @@ start:
 
     ;CODE 
       
-      mov cx, 0
-      mov bx, 1
-      call readtobuffer
+      mov currentpage, 0
+      call cdir
+      call loadfiles
+      call cdir
+      call Menu
       
-      ;call cdir
-      ;call loadfiles
-      
-      
-      ;mov dx, handlers[0]
-      ;mov bx, handlers[1]
-      
+      ;mov currentpage, 1
+      ;call changepage
+      ;call Game
+            
       mov ax, 4c00h
       int 21h
       
     ;END CODE
     
     ;PROCS
+      
+      Menu proc
+        Menuinicial:
+          cmp nhandler, 3
+          jl nostart
+          mov bl, 0000_1010b
+          jmp inicialprint
+          nostart:
+          mov bl, 0000_0010b
+          inicialprint:
+            mov al, 1
+            
+            mov dh, 15
+            mov dl, 38
+            mov bp, offset startstr
+            call writestrpagews
+            
+            mov al, 1
+            mov dh, 16
+            mov dl, 33
+            call writestrpagens           
+;            mov dh,
+;            mov dl,
+;            mov bp,
+;            call writestrpagens
+              
+        ret
+      Menu endp
+      
+      Game proc
+        ret
+      Game endp
+      
+      ;
+      ; changepage - changes visible video page
+      ;
+      
+      changepage proc
+        mov al, currentpage
+        mov ah, 05h
+        int 10h
+        ret
+      changepage endp
       
       ;
       ; cdir - Navigate to the C:\ directory
@@ -111,7 +156,7 @@ start:
         
         ;Moves to buffer all file names
         inc di
-        mov cx, 199
+        mov cx, 200
         mov dx, di
         call fread
         mov di, offset buffer
@@ -123,15 +168,25 @@ start:
           repne scasb
           dec di
           mov byte ptr di, 0
+          
           mov dx, si
           mov al, 00h
           call fopen
+          
+          mov di, si
+          add di, 25
+          
           push di
-          mov di, nhandler
+          push bx
+          mov bl, 2
+          mov al, nhandler
+          mul bl
+          pop bx
+          mov di, ax
           mov handlers[di], ax
           pop di
           inc nhandler
-          add di, 3
+
           cmp byte ptr di, 0
           jnz loopfiles 
         endloadf:
@@ -153,18 +208,27 @@ start:
       addfile proc
         call filesdir
         mov dx, offset buffer
+        add dx, 2
         mov al, 0
         call fopen
         jc filenotexist
           
           push di
-          mov di, nhandler
+          push bx
+          mov bl, 2
+          mov al, nhandler
+          mul bl
+          pop bx
+          mov di, ax
           mov handlers[di], ax
           pop di
           inc nhandler
           
           mov bx, masterh
-          call sizebuffer
+          call fwrite
+          mov dx, offset filealternator
+          mov cx, 25
+          sub cx, ax
           call fwrite
         
         jmp endaddfile
@@ -176,6 +240,10 @@ start:
         call cdir        
         ret
       addfile endp
+      
+      ;
+      ; fclose - closes a file
+      ;
       
       fclose proc
         mov ah, 3Eh
@@ -198,28 +266,26 @@ start:
       fwrite endp
       
       ;
-      ; sizebuffer - gives you the size of the first word in the buffer
-      ; Outputs:
-      ;   -Cx: Size of first word + $ + 0dH + 0aH
+      ; sizebuffer - gives you the size of a word in the buffer
+      ;   Inputs:
+      ;     -Si: Offset of the word
+      ;   Outputs:
+      ;     -Cx: Size of the word + $
       ;
       
       sizebuffer proc
         push ax
         push di
-        mov cx, 26
+        mov cx, 300
         mov di, offset buffer
-        mov ax, 0
+        add di, si
+        
+        mov ax, "$"
         repne scasb
         mov ax, cx
-        mov cx, 25
+        mov cx, 299
         sub cx, ax
-        add cx, 3
-        inc di
-        mov byte ptr di, 0Ah
-        dec di
-        mov byte ptr di, 0Dh
-        dec di
-        mov byte ptr di, "$"
+        
         pop di
         pop ax
         ret
@@ -284,7 +350,7 @@ start:
       
       masterinit proc
         push cx
-        mov cx,0
+        mov cx, 2
         mov ax, 3C00h
         int 21h
         mov masterh, ax
@@ -319,11 +385,13 @@ start:
       ;   Bx: 0-terminates in 0 ; 1-terminates in $
       ; Outputs:
       ;   Buffer[DATA]: string
+      ;   cx: number of bytes writen
       ;       
       
       readtobuffer proc
         push ax
         push di
+        push cx
         or cx,cx
         jz freereading
         mov di, 0002h
@@ -359,19 +427,21 @@ start:
           mov dx, offset buffer
 		      mov ah, 0ah
 		      int 21h
-		      mov dx, 0
+		      mov dh, 0 
 		      mov dl, buffer[1]
-		      add di, dx
+		      mov di, dx
         terminate:
-          mov cx, 4
+          pop cx
           cmp bx, 0
           jz end0
           endd:
-            mov buffer[cx+i+2], "$"
+            mov buffer[cx+di+2], "$"
             jmp endreading
           end0:
             mov buffer[cx+di+2], 0   
         endreading:
+        xor cx, cx
+        mov cl, buffer[1]
         mov buffer[0], 07h
         mov buffer[1], 07h
         pop di
@@ -379,9 +449,94 @@ start:
         ret
       readtobuffer endp
       
-      writestrpage proc
+      ;
+      ;
+      ;   Inputs:
+      ;     -Al - 1: Var selection; 0: Buffer with cursor selection; else: Buffer without cursor selection
+      
+      writestrpagews proc
+        cmp al, 1
+        jz nobuffer
+        cmp al, 0
+        jnz nocursorchange
+        call selcursorpos
+        nocursorchange:
+          mov bh, currentpage
+          mov bp, offset buffer
+          add bp, si
+          call sizebuffer
+          jmp writews
+        nobuffer:
+          call selcursorpos
+          ;LAYOUT DA VAR var db 5,"START",0
+          xor cx, cx
+          mov di, bp
+          mov cl, byte ptr di
+          inc bp
+        writews:
+          mov ah, 13h
+          int 10h
+          inc cx
         ret
-      writestrpage endp
+      writestrpagews endp
+      
+      ;
+      ;
+      ;
+      
+      writestrpagens proc
+        cmp al,0
+        jz noselpos
+        call selcursorpos
+        noselpos:
+          mov dx, offset buffer
+          add dx, si
+          mov ah, 09h
+          int 21h
+        ret
+      writestrpagens endp
+      
+      ;
+      ;
+      ;
+      
+      selcursorpos proc
+        mov bh, currentpage
+        mov ah, 02h
+        int 10h
+        ret
+      selcursorpos endp
+      
+      ;
+      ;
+      ;
+      
+      printtxtnames proc 
+        call selcursorpos
+        mov bx, masterh
+        mov cx, 200
+        mov dx, offset buffer
+        call fread
+        looptxts:
+          call writestrpagens
+          call space
+          add si, 25
+          cmp buffer[si], 0
+          jnz looptxts  
+        ret
+      printtxtnames endp
+      
+      ;
+      ;
+      ;
+      
+      space proc
+        mov ah, 2
+      	mov dl, 32
+      	int 21h
+        ret
+      space endp
+      
       
     ;END PROCS
     
