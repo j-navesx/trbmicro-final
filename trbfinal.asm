@@ -62,6 +62,10 @@ start:
             mov bp, offset startstr
             call writestrpagews
             
+            mov al, 1
+            mov dh, 16
+            mov dl, 33
+            call writestrpagens           
 ;            mov dh,
 ;            mov dl,
 ;            mov bp,
@@ -482,8 +486,8 @@ start:
       
       writestrpagens proc
         cmp al,0
-        mov dx, bp
-        jnz noselpos
+        jz noselpos
+        call selcursorpos
         noselpos:
           mov dx, offset buffer
           add dx, si
