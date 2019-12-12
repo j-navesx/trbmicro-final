@@ -8,8 +8,11 @@ data segment
       filealternator db "$$$$$$$$$$$$$$$$$$$$$$$$$",0
       startstr db 5,"START",0
       addfilestr db 8,"ADD FILE",0
-      loadfilestr db 10,"LIST FILES",0
+      listfilestr db 10,"LIST FILES",0
+      backstr db 4,"BACK",0
       exitstr db 4,"EXIT",0
+      separator db ":","$",0
+      delbuttonstr db 1,"X",0
       handlers dw 8 dup(?),0
       nhandler db ?,0
       masterh dw ?,0
@@ -62,25 +65,25 @@ start:
         inicialprint:
           mov al, 1
           mov dh, 15
-          mov dl, 36
           mov bp, offset startstr
+          call getpos          
           call writestrpagews
           
           mov bl, 0000_1010b
           
           mov dh, 16
-          mov dl, 35
           mov bp, offset addfilestr
+          call getpos
           call writestrpagews
           
           mov dh, 17
-          mov dl, 34
-          mov bp, offset loadfilestr
+          mov bp, offset listfilestr
+          call getpos
           call writestrpagews
           
           mov dh, 18
-          mov dl, 37
           mov bp, offset exitstr
+          call getpos
           call writestrpagews
        
          call mouseinit
@@ -90,18 +93,33 @@ start:
          
          MouseLoop:
           call click
-          cmp al, 15
+          mov bx, 15
+          call cmpbutton
+          cmp dx, 1
           jz cStart
-          cmp al, 16
+          mov bx, 16
+          call cmpbutton
+          cmp dx, 1
           jz cAddFile
-          cmp al, 17
+          mov bx, 17
+          call cmpbutton
+          cmp dx, 1
           jz cListFile
-          cmp al, 18
+          mov bx, 18
+          call cmpbutton
+          cmp dx, 1
           jz cExit
           jmp MouseLoop
          
+         cExit:
+          jmp EndMenu
+         
+         cListFile:
+          call MenuListFiles
+          jmp MenuInicial
+         
          cAddFile:
-          call AddFile
+          call MenuAddFile
           jmp MenuInicial
          
          cStart:
@@ -188,21 +206,14 @@ start:
         
         call loadmaster
         
+        ;Moves to buffer all file names
+        call dumpfilesbuffer
         ;Verification to see if there is any file in the mastertext.txt
-        mov bx, masterh
-        mov cx, 1
-        mov dx, offset buffer
-        call fread
+        call filesdir
         mov di, offset buffer[0]
         call ifword
         or al,al
-        jz endloadf  
-        
-        ;Moves to buffer all file names
-        inc di
-        mov cx, 200
-        mov dx, di
-        call fread
+        jz endloadf
         mov di, offset buffer
         
         ;Loop to open the handlers for the files registred in mastertext
@@ -251,7 +262,7 @@ start:
       ;   -Buffer: name of the file you want to write (has to terminate in 0)
       ;
       
-      addfile proc
+      addfile proc 
         call filesdir
         mov dx, offset buffer
         add dx, 2
@@ -498,16 +509,16 @@ start:
       ;
       ;
       ;   Inputs:
-      ;     -Al - 1: Var selection; 0: Buffer with cursor selection; else: Buffer without cursor selection
+      ;     -Al - 1: Var selection; 0: Buffer without cursor selection; else: Buffer with cursor selection
       
       writestrpagews proc
+        mov bh, currentpage
         cmp al, 1
         jz nobuffer
         cmp al, 0
         jnz nocursorchange
         call selcursorpos
         nocursorchange:
-          mov bh, currentpage
           mov bp, offset buffer
           add bp, si
           call sizebuffer
@@ -531,6 +542,7 @@ start:
       ;
       
       writestrpagens proc
+        push ax
         cmp al,0
         jz noselpos
         call selcursorpos
@@ -539,6 +551,7 @@ start:
           add dx, si
           mov ah, 09h
           int 21h
+        pop ax
         ret
       writestrpagens endp
       
@@ -547,9 +560,13 @@ start:
       ;
       
       selcursorpos proc
+        push ax
+        push bx
         mov bh, currentpage
         mov ah, 02h
         int 10h
+        pop bx
+        pop ax
         ret
       selcursorpos endp
       
@@ -558,17 +575,17 @@ start:
       ;
       
       printtxtnames proc 
-        call selcursorpos
-        mov bx, masterh
-        mov cx, 200
-        mov dx, offset buffer
-        call fread
+        call dumpfilesbuffer
+        mov al, 1
         looptxts:
+          call selcursorpos
+          push dx
           call writestrpagens
-          call space
           add si, 25
+          pop dx
+          inc dh
           cmp buffer[si], 0
-          jnz looptxts  
+          jnz looptxts
         ret
       printtxtnames endp
       
@@ -576,12 +593,18 @@ start:
       ;
       ;
       
-      space proc
+      enter proc
+        push ax
+        push dx
         mov ah, 2
-      	mov dl, 32
-      	int 21h
+        mov dl, 0ah
+        int 21h
+        mov dl, 0dh
+        int 21h
+        pop dx
+        pop ax
         ret
-      space endp
+      enter endp
       
       click proc 
         mLoop:
@@ -600,7 +623,6 @@ start:
         mov ax, cx
         div bl
         mov ah, dl          ;AH - n de linhas AL - n de colunas
-        call clickOption;AQUI COMECA AS COMPARACOES NLINHA/FUNCAO BOTAO
         ret 
       click endp
       
@@ -612,6 +634,206 @@ start:
         ret
       mouseinit endp
       
+      getpos proc
+        push ax
+        push bx
+        push cx
+        push di
+        push si
+        mov buffer[300], dh
+        mov si, w.buffer[300]
+        mov di, bp
+        xor ax,ax
+        mov cx, 40
+        mov al, byte ptr di
+        xor bx, bx
+        mov bl, 2
+        div bl
+        add al, ah
+        sub cl, al
+        mov buffer[si], cl 
+        mov dl, cl
+        add si, 25
+        add cl, byte ptr di
+        mov buffer[si], cl
+        pop si
+        pop di
+        pop cx
+        pop bx
+        pop ax 
+        ret
+      getpos endp
+      
+      cmpbutton proc
+        push di
+        mov di, bx
+        cmp ah, bl
+        jnz notin
+        cmp al, buffer[di]
+        jl notin
+        cmp al, buffer[di+25]
+        ja notin
+        mov dx, 1
+        jmp exitcmp
+        notin:
+          mov dx, 0
+        exitcmp: 
+        pop di 
+        ret
+      cmpbutton endp
+      
+      MenuAddFile proc
+        mov dh, 15
+        mov cx, 4
+        call clearLines
+        mov al, 1
+        mov dh, 15
+        mov bl, 0000_1010b
+        mov bp, offset addfilestr
+        call getpos
+        call writestrpagews
+        
+        mov al, separator[0]
+        mov buffer[0], al
+        mov al, separator[1]
+        mov buffer[1], al
+        
+        mov al, 0
+        call writestrpagens
+        mov al, 1
+        mov dh, 16
+        mov dl, 27
+        call writestrpagens 
+        mov dh, 18
+        mov bp, offset backstr
+        call getpos
+        call writestrpagews
+        mov dh, 16
+        mov dl, 28
+        ;Loop em que intercala verificação do buffer do teclado com o cursor
+        call selcursorpos
+        mov bx, 0
+        mov cx, 0
+        call readtobuffer
+        call addfile
+        ret
+      MenuAddFile endp
+
+      ;
+      ; clearLines - clears a certain number of lines
+      ;   Inputs:
+      ;     - Dh - first line
+      ;     - Cx - number of lines to be deleted
+      ;
+      
+      clearLines proc
+        loopCTRLZ:
+        mov dl, 00h
+        mov bh, currentpage ;first page
+        mov ah, 02h
+        int 10h
+    ;loop clearLine
+        cmp cx, 0
+        jz endCTRLZ
+        push cx 
+        mov cx, 80  ;numero de vezes que escreve no ecra-nao mexer  
+        mov bh, 00h 
+        mov ah, 0Ah
+        mov al, 00h ;caracter to display
+        int 10h
+        inc dh
+        pop cx
+        dec cx
+        jmp loopCTRLZ 
+        endCTRLZ: 
+        ret
+      clearLines endp
+     
+     MenuListFiles proc
+      mov currentpage, 2
+      call changepage
+      
+      mov al, 1
+      mov dx, 0
+      mov bl, 0000_1010b
+      mov bp, offset listfilestr
+      call writestrpagews
+      
+      mov dh, 1
+      mov dl, 3
+      call printtxtnames
+      
+      ;ACABAR
+      
+      mov ah, 1
+      int 21h 
+      
+      ret
+     MenuListFiles endp
+     
+     dumpfilesbuffer proc
+      push bx
+      push cx
+      push dx
+      call filesdir
+      mov bx, masterh
+      mov cx, 200
+      mov dx, offset buffer
+      call fread
+      call cdir
+      pop dx
+      pop cx
+      pop bx
+      ret
+    dumpfilesbuffer endp
+     
+    delfile proc
+      
+      dec al
+      push ax
+      cmp al, nhandler
+      jae nofile
+      mov bl, 2
+      mul bl
+      mov di, ax
+      mov bx, handlers[di]
+      call fclose
+      mov handlers[di], 0000h
+      
+      call dumpfilesbuffer 
+       
+      pop ax
+      mov cl, 25
+      mul cl
+      mov dx, ax
+      mov di, offset buffer ;File to delete
+      add di, dx
+      xor ax, ax
+      mov al, nhandler
+      dec al
+      mul cl
+      mov dx, ax
+      mov si, offset buffer ;Final file
+      add si, dx
+      cmp al,nhandler
+      je remlastfile
+      remfile:
+        push si
+        repne movsb
+        pop si
+        mov di,si
+        mov cl, 25
+      remlastfile:
+        mov al, 0
+        repne stosb
+      jmp enddelfile
+      nofile:
+        mov al, 1
+        ;call writestrpagens
+      enddelfile:
+      dec nhandler
+      ret
+    delfile endp 
       
     ;END PROCS
     

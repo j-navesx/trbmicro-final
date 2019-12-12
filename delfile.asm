@@ -100,10 +100,7 @@ start:
       jz endloadf  
       
       ;Moves to buffer all file names
-      inc di
-      mov cx, 200
-      mov dx, di
-      call fread
+      call dumpfilesbuffer
       mov di, offset buffer
       
       ;Loop to open the handlers for the files registred in mastertext
