@@ -16,6 +16,7 @@ data segment
       FileSymbols db 2,"F1",2,"F2",2,"F3",2,"F4",2,"F5",2,"F6",2,"F7",2,"F8",0
       errorfe db 19,"FILE ALREADY EXISTS",0
       errorfnv db 14,"FILE NOT VALID",0
+      errornef db 17,"CANT HAVE 0 FILES",0
       handlers dw 8 dup(?),0
       nhandler db ?,0
       masterh dw ?,0
@@ -60,7 +61,7 @@ start:
         mov currentpage, 0
         call changepage
         mov dh, 15
-        mov cx, 5
+        mov cx, 10
         call clearLines
         cmp nhandler, 3
         jl nostart
@@ -136,6 +137,8 @@ start:
             mov currentpage, 1
             call changepage
             call Game
+            mov currentpage, 0
+            call changepage
             jmp MouseLoop
             
         EndMenu:      
@@ -269,15 +272,15 @@ start:
       ;
       
       addfile proc 
+        push cx
         call filesdir
         cmp buffer[2], 0
-        jz endaddfile
+        jz errorfiledontexist
         mov dx, offset buffer
         add dx, 2
         mov al, 0
         call fopen
-        jc endaddfile
-        ;;Pode haver problema com dx?
+        jc errorfiledontexist
         call clonecheck
         cmp dx, 1
         jz endaddfile  
@@ -291,15 +294,25 @@ start:
           mov handlers[di], ax
           pop di
           inc nhandler
-          
+          mov dx, offset buffer
+          add dx, 2
           mov bx, masterh
+          pop cx
           call fwrite
           mov dx, offset filealternator
           mov cx, 25
           sub cx, ax
           call fwrite
+          jmp endaddfile
         
- 
+        errorfiledontexist:
+          mov al, 1
+          mov bl, 0000_1100b 
+          mov dh, 25
+          mov dl, 0
+          mov bp, offset errorfnv
+          call writestrpagews  
+         
         endaddfile:
         call cdir        
         ret
@@ -739,6 +752,9 @@ start:
         mov bp, offset backstr
         call getpos
         call writestrpagews
+        mov dh, 16
+        mov dl, 28
+        call selcursorpos
         
         verificationloop:
           mov ah, 01h
@@ -753,14 +769,12 @@ start:
           
         ;Loop em que intercala verificação do buffer do teclado com o cursor
         inserttext:
-        mov dh, 16
-        mov dl, 28
-        call selcursorpos
         mov bx, 0
         mov cx, 0
         call readtobuffer
         call addfile
-        
+        mov ah, 00h
+        int 16h
         backbutton:
         ret
       MenuAddFile endp
@@ -905,6 +919,10 @@ start:
       push cx
       push di
       push si
+      mov bl, nhandler
+      dec bl
+      cmp bl, 0
+      jz error0files
       dec ah
       cmp ah, nhandler
       jae nofile
@@ -971,8 +989,16 @@ start:
       mov bx, masterh
       call fwrite
       dec nhandler
-      ;;CLOSE AND REOPEN MASTER
-      ;File Flushing
+      jmp nofile
+      
+      error0files:
+        mov al, 1
+        mov bl, 0000_1100b 
+        mov dh, 24
+        mov dl, 0
+        mov bp, offset errornef
+        call writestrpagews
+      
       nofile:
       pop si
       pop di
@@ -998,6 +1024,12 @@ start:
       jz copia
       jmp notcopia
       copia:
+          mov al, 1
+          mov bl, 0000_1100b 
+          mov dh, 25
+          mov dl, 0
+          mov bp, offset errorfe
+          call writestrpagews
         mov dx, 1
         jmp endclone
       notcopia:
