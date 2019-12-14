@@ -13,7 +13,7 @@ data segment
       exitstr db 4,"EXIT",0
       separator db ":","$",0
       delbuttonstr db 1,"X",0
-      FileSymbols db 2,"F1",2,"F2",2,"F3",2,"F4",2,"F5",2,"F6",2,"F7",2,"F8",0
+      filesymbols db 2,"F1",2,"F2",2,"F3",2,"F4",2,"F5",2,"F6",2,"F7",2,"F8",0
       errorfe db 19,"FILE ALREADY EXISTS",0
       errorfnv db 14,"FILE NOT VALID",0
       errornef db 17,"CANT HAVE 0 FILES",0
@@ -45,9 +45,6 @@ start:
       call cdir
       call Menu
       
-      ;mov currentpage, 1
-      ;call changepage
-      ;call Game
             
       mov ax, 4c00h
       int 21h
@@ -55,6 +52,10 @@ start:
     ;END CODE
     
     ;PROCS
+      
+      ;
+      ; Menu - Dislpays the menu screen
+      ;
       
       Menu proc
         MenuInicial:
@@ -266,7 +267,7 @@ start:
       loadfiles endp
       
       ;
-      ; addfile - add a file to mastertext.txt and open it
+      ; addfile - add a file to mastertext.txt and the handlers vector and open it
       ; Inputs:
       ;   -Buffer: name of the file you want to write (has to terminate in 0)
       ;
@@ -286,11 +287,13 @@ start:
         jz endaddfile  
           push di
           push bx
+          push ax
           mov bl, 2
           mov al, nhandler
           mul bl
-          pop bx
           mov di, ax
+          pop ax
+          pop bx
           mov handlers[di], ax
           pop di
           inc nhandler
@@ -320,6 +323,8 @@ start:
       
       ;
       ; fclose - closes a file
+      ;   Input:
+      ;     -Bx - handler to close
       ;
       
       fclose proc
@@ -476,28 +481,11 @@ start:
           or cx,cx
           jz terminate
           dec cx
-          mov ah, 00h
-          int 16h
-          cmp ah, 4Bh
-          jz inesquerda
-          cmp ah, 4Dh
-          jz indireita
+          mov ah, 07h
+          int 21h
           mov buffer[di], al
           inc di
-          ;ADICIONAR COMPARES DE SETAS
-          ;inesquerda: 4Bh
-          ;indireita: 4Dh
-          ;outesquerda: 1Bh
-          ;outdireita: 1Ah
           jmp readingloop
-          inesquerda:
-            mov buffer[di], 1Bh
-            inc di
-            jmp readingloop
-          indireita:
-            mov buffer[di], 1Ah
-            inc di
-            jmp readingloop
         freereading:
           mov buffer[0], 0FFh
           mov buffer[1], 00h
@@ -527,9 +515,11 @@ start:
       readtobuffer endp
       
       ;
-      ;
+      ; writestrpagews - Writes a string in the current page with the ability to change string atribute
       ;   Inputs:
-      ;     -Al - 1: Var selection; 0: Buffer without cursor selection; else: Buffer with cursor selection
+      ;     -Al - 1: Var selection (with cursor selection); 
+      ;           0: Buffer without cursor selection; 
+      ;           else: Buffer with cursor selection
       
       writestrpagews proc
         mov bh, currentpage
@@ -560,7 +550,14 @@ start:
       writestrpagews endp
       
       ;
-      ;
+      ; writestrpagens - Writes string from buffer to the current page without the ability 
+      ;                  to select atributte (More efficient)
+      ;   Input:
+      ;     -Al - 0: no cursor selection
+      ;           else: cursor selection
+      ;     -Si - offset to the buffer
+      ;   Output:
+      ;     Buffer [DATA]: string
       ;
       
       writestrpagens proc
@@ -578,7 +575,10 @@ start:
       writestrpagens endp
       
       ;
-      ;
+      ; selcursorpos - Selects cursor position on screen
+      ;   Input:
+      ;     -Dh - Line
+      ;     -Dl - Column
       ;
       
       selcursorpos proc
@@ -593,7 +593,9 @@ start:
       selcursorpos endp
       
       ;
-      ;
+      ; printtxtnames - prints the names of the files in mastertext.txt
+      ;   Output:
+      ;     -[Screen]: names of the files 
       ;
       
       printtxtnames proc 
@@ -612,7 +614,7 @@ start:
       printtxtnames endp
       
       ;
-      ;
+      ; enter - prints a enter character (CR + NL)
       ;
       
       enter proc
@@ -628,36 +630,23 @@ start:
         ret
       enter endp
       
+      ;
+      ; click - loop for mouse verification
+      ;   Output:
+      ;     -Ah - number of the line
+      ;     -Al - number of the collumn
+      ;
+      
       click proc 
         mLoop:
         mov ax, 03h
         int 33h
-        cmp bx, 00h     ;;;;MUDAR AQUIIII para qualquer mouse button
+        cmp bx, 00h
         jnz lClick
         jmp mLoop
         lClick:
         
-        ;converte posicao em pixeis para nlinha
-        mov ax, dx
-        mov bl, 8       ;pixel number for character's height
-        div bl
-        mov dl, al
-        mov ax, cx
-        div bl
-        mov ah, dl          ;AH - n de linhas AL - n de colunas
-        ret 
-      click endp
-      
-      clicknoloop proc 
-        mov ax, 03h
-        int 33h
-        cmp bx, 00h     ;;;;MUDAR AQUIIII para qualquer mouse button
-        jnz lClick2
-        mov ax, 0
-        jmp mEnd
-        lClick2:
-        
-        ;converte posicao em pixeis para nlinha
+        ;Converts the pixels in lines and collumns
         mov ax, dx
         mov bl, 8       ;pixel number for character's height
         div bl
@@ -665,17 +654,48 @@ start:
         mov ax, cx
         div bl
         mov ah, dl
-        mEnd:          ;AH - n de linhas AL - n de colunas
+        ret 
+      click endp
+      
+      ;
+      ; clicknoloop - mouse verification without loop (to use in bigger loops)
+      ;   Output:
+      ;     -Ah - number of the line
+      ;     -Al - number of the collumn  
+      ;
+      
+      clicknoloop proc 
+        mov ax, 03h
+        int 33h
+        cmp bx, 00h     
+        jnz lClick2
+        mov ax, 0
+        jmp mEnd
+        lClick2:
+        
+        ;Converts the pixels in lines and collumns
+        mov ax, dx
+        mov bl, 8       ;pixel number for character's height
+        div bl
+        mov dl, al
+        mov ax, cx
+        div bl
+        mov ah, dl
+        mEnd:
         ret 
       clicknoloop endp
       
-      mouseinit proc
-        push ax
-        mov ax, 0
-        int 33h
-        pop ax
-        ret
-      mouseinit endp
+      ;
+      ; getpos - a function used to center a word in the screen and save the coordinates for the columns in the buffer
+      ;          meant to be used with cmpbutton()
+      ;   Input:
+      ;     -Dh - number of the line
+      ;     -[Bp] - variable to be written
+      ;   Output:
+      ;     -Dl - Column to write
+      ;     -Buffer [DATA] - position [line(stored in Dh)] (first coordinate : start of button)
+      ;     -Buffer [DATA] - position [line+25] (second coordinate : end of button) 
+      ;
       
       getpos proc
         push ax
@@ -707,6 +727,15 @@ start:
         ret
       getpos endp
       
+      ;
+      ; cmpbutton - compares the positions of memory with the coordinates stored and evaluates if the button was clicked
+      ;   Input:
+      ;     -Ah - number of the line
+      ;   Output:
+      ;     -Dx - 0: Button wasnt clicked
+      ;           1: Button was clicked
+      ;
+      
       cmpbutton proc
         push di
         mov di, bx
@@ -724,6 +753,10 @@ start:
         pop di 
         ret
       cmpbutton endp
+      
+      ;
+      ; MenuAddFile - "add file" menu option
+      ;
       
       MenuAddFile proc
         mov dh, 15
@@ -756,6 +789,9 @@ start:
         mov dl, 28
         call selcursorpos
         
+                 
+        ;Loop that checks cursor and buffer interchangeably
+        
         verificationloop:
           mov ah, 01h
           int 16h
@@ -767,7 +803,6 @@ start:
           jz backbutton
           jmp verificationloop 
           
-        ;Loop em que intercala verificação do buffer do teclado com o cursor
         inserttext:
         mov bx, 0
         mov cx, 0
@@ -789,16 +824,15 @@ start:
       clearLines proc
         loopCTRLZ:
         mov dl, 00h
-        mov bh, currentpage ;first page
+        mov bh, currentpage 
         mov ah, 02h
         int 10h
-    ;loop clearLine
         cmp cx, 0
         jz endCTRLZ
         push cx 
-        mov cx, 80  ;numero de vezes que escreve no ecra-nao mexer  
+        mov cx, 80  ;Number of characters in a line  
         mov ah, 0Ah
-        mov al, 00h ;caracter to display
+        mov al, 00h ;Character to display
         int 10h
         inc dh
         pop cx
@@ -808,15 +842,16 @@ start:
         ret
       clearLines endp
      
+     ;
+     ; MenuListFiles - "list files" menu option
+     ;
+     
      MenuListFiles proc
       call cdir
       mov currentpage, 2
       call changepage
       Beginlist:
       mov dh, 1
-      ;xor cx,cx
-;      mov cl, nhandler
-;      inc cx
       mov cx, 10
       call clearLines
       
@@ -881,16 +916,16 @@ start:
           call delfile
           jmp Beginlist 
       jmp listfilesloop 
-      
-        
-        
-      ;ACABAR
-      
-      mov ah, 1
-      int 21h 
+       
       endlistfiles:
       ret
      MenuListFiles endp
+     
+     ;
+     ; dumpfilesbuffer - dumps all text in mastertext (filenames) in the buffer
+     ;    Output:
+     ;      -Buffer [DATA] - All text file names
+     ;
      
      dumpfilesbuffer proc
       push bx
@@ -913,6 +948,10 @@ start:
       pop bx
       ret
     dumpfilesbuffer endp
+    
+    ;
+    ; delfile - delete file function (from the mastertext.txt and the handlers vector)
+    ;
      
     delfile proc    
       push bx
@@ -1007,6 +1046,15 @@ start:
       ret 
     delfile endp
     
+    ;
+    ; fseek - seeks a postion in a file
+    ;   Input:
+    ;     -Al - 0: starts from the beginning
+    ;           1: starts from the curent file position
+    ;           2: starts from the end of file
+    ;     -Cx:Dx - offset from the origin
+    ;
+    
     fseek proc 
       push dx
       mov ah, 42h
@@ -1015,8 +1063,16 @@ start:
       ret         
     fseek endp
     
+    ;
+    ; clonecheck - function to verify if the handler already exists
+    ;   Input:
+    ;     -Ax - handler
+    ;   Output:
+    ;     -Dx - 1:already exists
+    ;           0:else
+    ;
+    
     clonecheck proc
-      ;AX - handler
       xor cx,cx
       mov cl, nhandler
       mov di, offset handlers
