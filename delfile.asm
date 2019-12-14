@@ -32,7 +32,7 @@ start:
     call cdir 
     call loadfiles
     
-    mov al, 2
+    mov ah, 2
     call delfile
     
     mov ax, 4c00h ; exit to operating system.
@@ -80,68 +80,64 @@ start:
     ;
     
     loadfiles proc
-      push ax
-      push dx
-      push di
-      push si
-      
-      call filesdir
-      
-      call loadmaster
-      
-      ;Verification to see if there is any file in the mastertext.txt
-      mov bx, masterh
-      mov cx, 1
-      mov dx, offset buffer
-      call fread
-      mov di, offset buffer[0]
-      call ifword
-      or al,al
-      jz endloadf  
-      
-      ;Moves to buffer all file names
-      call dumpfilesbuffer
-      mov di, offset buffer
-      
-      ;Loop to open the handlers for the files registred in mastertext
-      loopfiles:
-        mov si, di
-        mov ax, "$"
-        repne scasb
-        dec di
-        mov byte ptr di, 0
-        
-        mov dx, si
-        mov al, 00h
-        call fopen
-        
-        mov di, si
-        add di, 25
-        
-        push di
         push ax
-        push bx
-        mov bl, 2
-        mov al, nhandler
-        mul bl
-        pop bx
-        mov di, ax
-        pop ax
-        mov handlers[di], ax
-        pop di
-        inc nhandler
+        push dx
+        push di
+        push si
+        
+        call filesdir
+        
+        call loadmaster
+        
+        ;Moves to buffer all file names
+        call dumpfilesbuffer
+        ;Verification to see if there is any file in the mastertext.txt
+        call filesdir
+        mov di, offset buffer[0]
+        call ifword
+        or al,al
+        jz endloadf
+        mov di, offset buffer
+        
+        ;Loop to open the handlers for the files registred in mastertext
+        loopfiles:
+          mov si, di
+          mov ax, "$"
+          repne scasb
+          dec di
+          mov byte ptr di, 0
+          
+          mov dx, si
+          mov al, 00h
+          call fopen
+          
+          mov di, si
+          add di, 25
+          
+          push di
+          push ax
+          push bx
+          mov bl, 2
+          mov al, nhandler
+          mul bl
+          pop bx
+          mov di, ax
+          pop ax
+          mov handlers[di], ax
+          pop di
+          inc nhandler
 
-        cmp byte ptr di, 0
-        jnz loopfiles 
-      endloadf:
-      
-      pop si
-      pop di
-      pop dx
-      pop ax
-      call cdir
-      ret
-    loadfiles endp
+          cmp byte ptr di, 0
+          jnz loopfiles 
+        endloadf:
+        
+        pop si
+        pop di
+        pop dx
+        pop ax
+        call cdir
+        ret
+      loadfiles endp
       
     
     addfile proc 
@@ -297,23 +293,36 @@ start:
     ;
     ;
     ;
-    
-    delfile proc
-      
-      dec al
-      push ax
-      cmp al, nhandler
+
+    delfile proc    
+      push bx
+      push cx
+      push di
+      push si
+      dec ah
+      cmp ah, nhandler
       jae nofile
+      push ax
       mov bl, 2
       mul bl
-      mov di, ax
+      mov cl, ah
+      mov di, cx
       mov bx, handlers[di]
       call fclose
-      mov handlers[di], 0000h
+      xor ax,ax
+      mov al, nhandler
+      dec ax
+      mov bl, 2
+      mul bl
+      mov si, ax
+      mov ax, handlers[si]
+      mov handlers[di], ax
+      mov handlers[si], 0000h
       
       call dumpfilesbuffer 
        
       pop ax
+      push ax
       mov cl, 25
       mul cl
       mov dx, ax
@@ -326,26 +335,38 @@ start:
       mov dx, ax
       mov si, offset buffer ;Final file
       add si, dx
+      pop ax
       cmp al,nhandler
       je remlastfile
       remfile:
+        mov cx, 25
         push si
         repne movsb
         pop si
         mov di,si
-        mov cl, 25
       remlastfile:
+        mov cx, 25
         mov al, 0
         repne stosb
       jmp enddelfile
-      nofile:
-        mov al, 1
-        ;call writestrpagens
       enddelfile:
-      dec nahndler
-      ret
-    delfile endp 
-    
+      dec nhandler
+      mov bx, masterh
+      mov ax,0
+      call fseek
+      mov dx, offset buffer
+      mov al, nhandler
+      mov bl, 25
+      mul bl
+      mov cx, ax
+      call fwrite
+      nofile:
+      pop si
+      pop di
+      pop cx
+      pop bx
+      ret 
+    delfile endp
     ;
     ; ifword - 
     ;
@@ -381,6 +402,14 @@ start:
       pop bx
       ret
     dumpfilesbuffer endp
+    
+    fseek proc 
+      push dx
+      mov ah, 42h
+      int 21h
+      pop dx
+      ret         
+    fseek endp
           
 ends
 

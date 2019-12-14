@@ -13,6 +13,9 @@ data segment
       exitstr db 4,"EXIT",0
       separator db ":","$",0
       delbuttonstr db 1,"X",0
+      FileSymbols db 2,"F1",2,"F2",2,"F3",2,"F4",2,"F5",2,"F6",2,"F7",2,"F8",0
+      errorfe db 19,"FILE ALREADY EXISTS",0
+      errorfnv db 14,"FILE NOT VALID",0
       handlers dw 8 dup(?),0
       nhandler db ?,0
       masterh dw ?,0
@@ -53,9 +56,12 @@ start:
     ;PROCS
       
       Menu proc
-      
+        MenuInicial:
         mov currentpage, 0
         call changepage
+        mov dh, 15
+        mov cx, 5
+        call clearLines
         cmp nhandler, 3
         jl nostart
         mov bl, 0000_1010b
@@ -87,7 +93,7 @@ start:
           call writestrpagews
        
          call mouseinit
-         MenuInicial:
+         
           mov currentpage, 0
           call changepage
          
@@ -264,12 +270,17 @@ start:
       
       addfile proc 
         call filesdir
+        cmp buffer[2], 0
+        jz endaddfile
         mov dx, offset buffer
         add dx, 2
         mov al, 0
         call fopen
-        jc filenotexist
-          
+        jc endaddfile
+        ;;Pode haver problema com dx?
+        call clonecheck
+        cmp dx, 1
+        jz endaddfile  
           push di
           push bx
           mov bl, 2
@@ -288,11 +299,7 @@ start:
           sub cx, ax
           call fwrite
         
-        jmp endaddfile
-        filenotexist:
-          mov bx, ax
-          call fclose
-          jmp endaddfile
+ 
         endaddfile:
         call cdir        
         ret
@@ -513,6 +520,7 @@ start:
       
       writestrpagews proc
         mov bh, currentpage
+        push bp
         cmp al, 1
         jz nobuffer
         cmp al, 0
@@ -534,6 +542,7 @@ start:
           mov ah, 13h
           int 10h
           inc cx
+          pop bp
         ret
       writestrpagews endp
       
@@ -626,6 +635,27 @@ start:
         ret 
       click endp
       
+      clicknoloop proc 
+        mov ax, 03h
+        int 33h
+        cmp bx, 00h     ;;;;MUDAR AQUIIII para qualquer mouse button
+        jnz lClick2
+        mov ax, 0
+        jmp mEnd
+        lClick2:
+        
+        ;converte posicao em pixeis para nlinha
+        mov ax, dx
+        mov bl, 8       ;pixel number for character's height
+        div bl
+        mov dl, al
+        mov ax, cx
+        div bl
+        mov ah, dl
+        mEnd:          ;AH - n de linhas AL - n de colunas
+        ret 
+      clicknoloop endp
+      
       mouseinit proc
         push ax
         mov ax, 0
@@ -699,6 +729,7 @@ start:
         mov buffer[1], al
         
         mov al, 0
+        mov si, 0
         call writestrpagens
         mov al, 1
         mov dh, 16
@@ -708,14 +739,29 @@ start:
         mov bp, offset backstr
         call getpos
         call writestrpagews
+        
+        verificationloop:
+          mov ah, 01h
+          int 16h
+          jnz inserttext
+          call clicknoloop
+          mov bx, 18
+          call cmpbutton
+          cmp dx, 1
+          jz backbutton
+          jmp verificationloop 
+          
+        ;Loop em que intercala verificação do buffer do teclado com o cursor
+        inserttext:
         mov dh, 16
         mov dl, 28
-        ;Loop em que intercala verificação do buffer do teclado com o cursor
         call selcursorpos
         mov bx, 0
         mov cx, 0
         call readtobuffer
         call addfile
+        
+        backbutton:
         ret
       MenuAddFile endp
 
@@ -737,7 +783,6 @@ start:
         jz endCTRLZ
         push cx 
         mov cx, 80  ;numero de vezes que escreve no ecra-nao mexer  
-        mov bh, 00h 
         mov ah, 0Ah
         mov al, 00h ;caracter to display
         int 10h
@@ -750,9 +795,18 @@ start:
       clearLines endp
      
      MenuListFiles proc
+      call cdir
       mov currentpage, 2
       call changepage
+      Beginlist:
+      mov dh, 1
+      ;xor cx,cx
+;      mov cl, nhandler
+;      inc cx
+      mov cx, 10
+      call clearLines
       
+      mov si, 0
       mov al, 1
       mov dx, 0
       mov bl, 0000_1010b
@@ -760,14 +814,67 @@ start:
       call writestrpagews
       
       mov dh, 1
-      mov dl, 3
+      mov dl, 28
       call printtxtnames
       
+      mov al, 1
+      mov dh, 1
+      mov dl, 54
+      mov bl, 0000_1100b
+      mov bp, offset delbuttonstr
+      loopdelbuttons:
+        call writestrpagews
+        cmp dh, nhandler
+        jz loopdelbend
+        inc dh
+        jmp loopdelbuttons
+      loopdelbend:
+      
+      mov al, 1
+      mov dh, 1
+      mov dl, 24
+      mov bl, 0000_1010b
+      mov bp, offset FileSymbols
+      
+      filenumbersloop:
+        call writestrpagews
+        cmp dh, nhandler
+        jz numbersloopend
+        inc dh
+        add bp, 3
+        jmp filenumbersloop
+      numbersloopend:
+      
+      mov dh, 18
+      mov bl, 0000_1010b
+      mov bp, offset backstr
+      call getpos          
+      call writestrpagews 
+      
+      listfilesloop:
+        call click
+        cmp al, 26
+        jz cmpdelbuttons
+        mov bx, 18
+        call cmpbutton
+        cmp dx, 1
+        jz endlistfiles
+        cmpdelbuttons:
+          cmp ah, 0
+          jz listfilesloop
+          cmp ah, nhandler
+          ja listfilesloop
+          call delfile
+          jmp Beginlist 
+      jmp listfilesloop 
+      
+        
+        
       ;ACABAR
       
       mov ah, 1
       int 21h 
-      
+      endlistfiles:
       ret
      MenuListFiles endp
      
@@ -775,7 +882,13 @@ start:
       push bx
       push cx
       push dx
+      call cdir
       call filesdir
+      mov bx, masterh
+      mov ax, 0
+      mov cx, 0
+      mov dx, 0
+      call fseek
       mov bx, masterh
       mov cx, 200
       mov dx, offset buffer
@@ -787,53 +900,111 @@ start:
       ret
     dumpfilesbuffer endp
      
-    delfile proc
-      
-      dec al
-      push ax
-      cmp al, nhandler
+    delfile proc    
+      push bx
+      push cx
+      push di
+      push si
+      dec ah
+      cmp ah, nhandler
       jae nofile
+      xor al,al
+      mov al, ah
+      push ax
       mov bl, 2
       mul bl
       mov di, ax
       mov bx, handlers[di]
       call fclose
-      mov handlers[di], 0000h
+      xor ax,ax
+      mov al, nhandler
+      dec ax
+      mov bl, 2
+      mul bl
+      mov si, ax
+      mov ax, handlers[si]
+      mov handlers[di], ax
+      mov handlers[si], 0000h
       
       call dumpfilesbuffer 
        
       pop ax
+      push ax
       mov cl, 25
       mul cl
-      mov dx, ax
       mov di, offset buffer ;File to delete
-      add di, dx
+      add di, ax
       xor ax, ax
       mov al, nhandler
       dec al
+      mov cl, 25
       mul cl
-      mov dx, ax
       mov si, offset buffer ;Final file
-      add si, dx
+      add si, ax
+      pop ax
       cmp al,nhandler
       je remlastfile
       remfile:
+        mov cx, 25
         push si
         repne movsb
+        dec di
+        mov byte ptr di, "$"
+        inc di
         pop si
         mov di,si
-        mov cl, 25
       remlastfile:
+        mov cx, 25
         mov al, 0
         repne stosb
       jmp enddelfile
-      nofile:
-        mov al, 1
-        ;call writestrpagens
       enddelfile:
+      mov bx, masterh
+      mov ax, 0
+      mov cx, 0
+      call fseek
+      mov dx, offset buffer
+      mov al, nhandler
+      mov bl, 25
+      mul bl
+      mov cx, ax
+      mov bx, masterh
+      call fwrite
       dec nhandler
-      ret
-    delfile endp 
+      ;;CLOSE AND REOPEN MASTER
+      ;File Flushing
+      nofile:
+      pop si
+      pop di
+      pop cx
+      pop bx
+      ret 
+    delfile endp
+    
+    fseek proc 
+      push dx
+      mov ah, 42h
+      int 21h
+      pop dx
+      ret         
+    fseek endp
+    
+    clonecheck proc
+      ;AX - handler
+      xor cx,cx
+      mov cl, nhandler
+      mov di, offset handlers
+      repne scasw
+      jz copia
+      jmp notcopia
+      copia:
+        mov dx, 1
+        jmp endclone
+      notcopia:
+        mov dx, 0
+      endclone:
+      ret 
+    clonecheck endp
       
     ;END PROCS
     
