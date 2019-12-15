@@ -508,8 +508,6 @@ start:
     
     addFileGameMenu proc 
       push bx
-
-     ReadScreenFileGameMenu:
       
       mov dh, 0
       mov dl, 15 
@@ -536,13 +534,6 @@ start:
           jmp verificationloopGM
           
      inserttextGM: 
-      
-      ;mov cx, 0
-;    	mov bx, 0
-;    	call readtobuffer
-;    	cmp cx, 25
-;    	ja ReadScreenFileGameMenu    
-;      call addfile
 
       mov bx, 0
       mov cx, 0
@@ -644,7 +635,7 @@ start:
         mov al, 2
         call fopen
         jc errorfneLC:
-        mov masterh, ax
+        mov caveirah, ax
         jmp endloadcaveira
         errorfneLC:
           ;caveira.txt file does not exist
