@@ -607,7 +607,7 @@ start:
       
       masterinit proc
         push cx
-        mov cx, 2
+        mov cx, 0
         mov ax, 3C00h
         int 21h
         mov masterh, ax
@@ -998,7 +998,7 @@ start:
       
       clearLines proc
         loopCTRLZ: 
-        mov bl, 0000_1111b  ;atributo
+        mov bl, 0000_1010b  ;atributo
         mov dl, 00h
         mov bh, currentpage 
         mov ah, 02h
@@ -1883,7 +1883,7 @@ start:
       mov dl, 15 
       call selcursorpos 
       
-      mov bl, 0000_1111b 
+      mov bl, 0000_1010b 
       mov bh, currentpage
       mov cx, 60  ;numero de vezes que escreve no ecra   
       mov ah, 09h
