@@ -499,7 +499,8 @@ start:
           pop cx  
          
         endaddfile:
-        call cdir        
+        call cdir
+        pop cx        
         ret
       addfile endp
       
@@ -1256,6 +1257,7 @@ start:
     ;
     
     clonecheck proc
+      push ax
       push bp
       mov bp, 0
       cmp nhandler, 0
@@ -1270,7 +1272,7 @@ start:
         push cx
         push dx
         
-        
+        xor cx, cx
         mov ax, 0
         mov dx, 0
         mov bx, masterh
@@ -1280,16 +1282,18 @@ start:
         pop dx
         pop cx
         
-        mov dx, offset buffer[3]
+        mov dx, offset buffer
+        add dx, 2
         add dx, cx
         mov bx, masterh
         call fread
         
         push si
-        mov si, offset buffer[3]
+        mov si, offset buffer
+        add si, 2
         add si, cx
         
-        mov di, offset buffer
+        mov di, offset buffer 
         add di, 2
         
         mov ax, cx
@@ -1324,6 +1328,7 @@ start:
         mov dx, 0
       endclone:
       pop bp
+      pop ax
       ret 
     clonecheck endp 
     
