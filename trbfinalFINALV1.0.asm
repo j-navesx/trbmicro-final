@@ -58,7 +58,7 @@ start:
       mov currentpage, 0
       call cdir
       call loadfiles
-      call cdir
+      call cdir 
       call Menu
       
             
@@ -154,7 +154,7 @@ start:
             call Game
             mov currentpage, 0
             call changepage
-            jmp MouseLoop
+            jmp MenuInicial
             
         EndMenu:      
         ret
@@ -169,14 +169,10 @@ start:
         push ax
         push dx
         push cx
-        push bx 
+        push bx
         
-        call cdir                    ;
-        mov al, 1                    ;Abertura do ficheiro já existente "caveira.txt"
-        mov dx, offset caveirafile   ;na direturia c (daí o cdir)
-        call fopen                   ;
-        
-        mov caveirah, ax             ;Guarda o handler
+        call cdir 
+        call loadcaveira 
         
         mov al, 2                    ;
         mov bx, caveirah             ;
@@ -1917,6 +1913,42 @@ start:
       pop bx
       ret
     addFileGameMenu endp
+    
+      ;
+      ; loadcaveira - loads caveira.txt file or creates it
+      ; output:
+      ;   -caveirah(DATA): mastertext.txt file handler
+      ;
+      
+      loadcaveira proc
+        mov dx, offset caveiraFile
+        mov al, 2
+        call fopen
+        jc errorfneLC:
+        mov masterh, ax
+        jmp endloadcaveira
+        errorfneLC:
+          ;caveira.txt file does not exist
+          call caveirainit
+        endloadcaveira:
+        ret
+      loadcaveira endp
+      
+      ;
+      ; caveirainit - creates caveira.txt file
+      ; output:
+      ;   -caveirarh(DATA): caveiratext.txt file handler
+      ;
+      
+      caveirainit proc
+        push cx
+        mov cx, 0
+        mov ax, 3C00h
+        int 21h
+        mov caveirah, ax
+        pop cx
+        ret  
+      caveirainit endp
 
   
     ;END PROCS
