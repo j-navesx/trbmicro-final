@@ -100,6 +100,11 @@ start:
           call getpos
           call writestrpagews
           
+          cmp nhandler, 0
+          jz listnotactivated
+          
+          list:
+          mov bl, 0000_1010b
           mov dh, 17
           mov bp, offset listfilestr
           call getpos
@@ -133,10 +138,16 @@ start:
           jz cExit
           jmp MouseLoop
          
+          listnotactivated:
+          mov bl, 0000_0010b
+          jmp list
+         
          cExit:
           jmp EndMenu
          
          cListFile:
+          cmp nhandler, 0
+          jz mouseloop
           call MenuListFiles
           jmp MenuInicial
          
