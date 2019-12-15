@@ -537,12 +537,19 @@ start:
           
      inserttextGM: 
       
+      ;mov cx, 0
+;    	mov bx, 0
+;    	call readtobuffer
+;    	cmp cx, 25
+;    	ja ReadScreenFileGameMenu    
+;      call addfile
+
+      mov bx, 0
       mov cx, 0
-    	mov bx, 0
-    	call readtobuffer
-    	cmp cx, 25
-    	ja ReadScreenFileGameMenu    
+      call readtobuffer
       call addfile
+      mov ah, 00h
+      int 16h
     	
      backbuttonGM:
       
@@ -747,7 +754,7 @@ start:
         jc errorfiledontexist
         call clonecheck
         cmp dx, 1
-        jz endaddfile  
+        jz errorfileopen  
           push di
           push bx
           push ax
@@ -769,6 +776,10 @@ start:
           mov cx, 25
           sub cx, ax
           call fwrite
+          jmp endaddfile 
+          
+        errorfileopen:
+          pop cx
           jmp endaddfile
         
         errorfiledontexist:
@@ -781,8 +792,7 @@ start:
           pop cx  
          
         endaddfile:
-        call cdir
-        pop cx        
+        call cdir       
         ret
       addfile endp
      
