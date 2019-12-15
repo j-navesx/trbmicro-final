@@ -160,6 +160,10 @@ start:
         ret
       Menu endp
       
+      ;
+      ;Game - vai para o menu de jogo e executa todos os procs necessários para o jogo correr
+      ;
+      
       Game proc 
         push di 
         push ax
@@ -167,18 +171,18 @@ start:
         push cx
         push bx 
         
-        call cdir
-        mov al, 1
-        mov dx, offset caveirafile
-        call fopen
+        call cdir                    ;
+        mov al, 1                    ;Abertura do ficheiro já existente "caveira.txt"
+        mov dx, offset caveirafile   ;na direturia c (daí o cdir)
+        call fopen                   ;
         
-        mov caveirah, ax 
+        mov caveirah, ax             ;Guarda o handler
         
-        mov al, 2
-        mov bx, caveirah
-        xor cx, cx
-        xor dx, dx
-        call fseek 
+        mov al, 2                    ;
+        mov bx, caveirah             ;
+        xor cx, cx                   ;
+        xor dx, dx                   ;
+        call fseek                   ;
         
         pop bx
         pop cx
@@ -202,16 +206,7 @@ start:
         mov dh, 1 ;Y
         mov dl, 0 ;X
         mov bp, offset filedisplay
-        call writestrpagews 
-        
-;          push ax
-;          push bx
-;          mov al, nhandler
-;          mov bl, 3
-;          mul bl
-;          mov FileSimbols[0], al
-;          pop bx 
-;          pop ax 
+        call writestrpagews  
         
         call EscritaSimbolos
         
@@ -227,12 +222,6 @@ start:
         call selcursorpos
         ;---------------------------------------------------------          
        LoopRandomWord:  
-        
-       ; mov ah, 00h  ;Int para ler o caracter do teclado sem echo
-;          INT 16h      ;
-;          xor ah, ah   ;ah= 0
-;          sub ax, 49   ;ax= ax-'0'-1
-;          mov di, ax   ;di= ax
         
         call mouseMenuOrFile ;(devolve 0 a 7 para di dependendo da localização do click)
                              ;(Ou vai para o menu)
@@ -260,6 +249,7 @@ start:
         mov bx, handlers[di]
         call fGetWord
         
+        mov si, 0
         call sizebuffer 
         
         mov wordSize, cx
@@ -284,7 +274,8 @@ start:
         jz EndLoopRandomWord
         
         mov al, 1 
-        mov dl, 0 ;X
+        mov dl, 0 ;X 
+        mov si, 0
         call writestrpagens
         
         call space
@@ -305,6 +296,7 @@ start:
        NotPageOverflow:
        
         mov al, 0
+        mov si, 0
         call writestrpagens
         
         call space
@@ -1005,7 +997,8 @@ start:
       ;
       
       clearLines proc
-        loopCTRLZ:
+        loopCTRLZ: 
+        mov bl, 0000_1111b  ;atributo
         mov dl, 00h
         mov bh, currentpage 
         mov ah, 02h
@@ -1014,7 +1007,7 @@ start:
         jz endCTRLZ
         push cx 
         mov cx, 80  ;Number of characters in a line  
-        mov ah, 0Ah
+        mov ah, 09h ;imprime null com atributo
         mov al, 00h ;Character to display
         int 10h
         inc dh
