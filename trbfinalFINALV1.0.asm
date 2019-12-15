@@ -104,11 +104,11 @@ start:
           jz listnotactivated
           
           list:
-          mov bl, 0000_1010b
           mov dh, 17
           mov bp, offset listfilestr
           call getpos
           call writestrpagews
+          mov bl, 0000_1010b
           
           mov dh, 18
           mov bp, offset exitstr
@@ -1256,13 +1256,53 @@ start:
     ;
     
     clonecheck proc
-      xor cx,cx
-      mov cl, nhandler
-      mov di, offset handlers
-      repne scasw
-      jz copia
-      jmp notcopia
+      push bp
+      mov bp, 0
+      cmp nhandler, 0
+      jz notcopia
+      mov si, 0
+      cloneloop:
+        xor dx,dx
+        mov dl, nhandler
+        cmp bp, dx
+        jz notcopia
+        
+        push cx
+        push dx
+        
+        
+        mov ax, 0
+        mov dx, 0
+        mov bx, masterh
+        add dx, si
+        call fseek
+        
+        pop dx
+        pop cx
+        
+        mov dx, offset buffer[3]
+        add dx, cx
+        mov bx, masterh
+        call fread
+        
+        push si
+        mov si, offset buffer[3]
+        add si, cx
+        
+        mov di, offset buffer
+        add di, 2
+        
+        mov ax, cx
+        repe cmpsb
+        jz copia
+        pop si
+        mov cx, ax
+        add si, 25
+        inc bp
+      jmp cloneloop
+      
       copia:
+          pop si
           mov al, 1
           mov bl, 0000_1100b 
           mov dh, 24
@@ -1272,8 +1312,18 @@ start:
         mov dx, 1
         jmp endclone
       notcopia:
+        mov ax, 0
+        mov bl, 25
+        mov al, nhandler
+        mul bl
+        mov dx, ax
+        mov ax, 0
+        mov cx, 0
+        mov bx, masterh
+        call fseek
         mov dx, 0
       endclone:
+      pop bp
       ret 
     clonecheck endp 
     
