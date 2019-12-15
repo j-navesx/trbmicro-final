@@ -19,12 +19,11 @@ data segment
       exitstr db 4,"EXIT",0
       separator db ":","$",0
       delbuttonstr db 1,"X",0
-      caveiraFile db "D:\emu8086\vdrive\C\Files\caveira.txt",0
+      caveiraFile db "caveira.txt",0
       filesymbols db 2,"F1",2,"F2",2,"F3",2,"F4",2,"F5",2,"F6",2,"F7",2,"F8",0
       errorfe db 19,"FILE ALREADY EXISTS",0
       errorfnv db 14,"FILE NOT VALID",0
       errornef db 17,"CANT HAVE 0 FILES",0
-      number1 dw 2
       date dw 6 dup(?),244,0
       mouseposgameY db ?
       mouseposgameX db ?
@@ -168,6 +167,7 @@ start:
         push cx
         push bx 
         
+        call cdir
         mov al, 1
         mov dx, offset caveirafile
         call fopen
