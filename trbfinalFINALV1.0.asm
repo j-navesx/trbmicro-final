@@ -146,7 +146,7 @@ start:
          
          cStart:
           cmp nhandler, 3
-          ja continueStart
+          jae continueStart
           jmp mouseloop
           continueStart:
             mov currentpage, 1

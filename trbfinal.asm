@@ -93,8 +93,6 @@ start:
           mov bp, offset exitstr
           call getpos
           call writestrpagews
-       
-         call mouseinit
          
           mov currentpage, 0
           call changepage
@@ -314,7 +312,8 @@ start:
           mov dh, 25
           mov dl, 0
           mov bp, offset errorfnv
-          call writestrpagews  
+          call writestrpagews
+          pop cx  
          
         endaddfile:
         call cdir        
