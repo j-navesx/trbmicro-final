@@ -321,14 +321,14 @@ start:
         push cx
         push bx
         
-        call cdir 
-        call loadcaveira 
+        call cdir                  ;Load do ficheiro caveira
+        call loadcaveira           ;caso não exista cria um novo
         
-        mov al, 2                    ;
-        mov bx, caveirah             ;
-        xor cx, cx                   ;
-        xor dx, dx                   ;
-        call fseek                   ;
+        mov al, 2                  ;
+        mov bx, caveirah           ;
+        xor cx, cx                 ;Colocar o cursor do ficheiro (caveira.txt) no final do ficheiro
+        xor dx, dx                 ;
+        call fseek                 ;
         
         pop bx
         pop cx
@@ -338,94 +338,97 @@ start:
         jmp Game_Cont
         
        Game_inic:
-        mov gameINI, 1
-       Game_Cont: 
+        mov gameINI, 1   ;Isto acontece sempre que eu volto do menu dentro do jogo
+       Game_Cont:        ;Por exemplo no back ou quando escrevo um nome de ficheiro (válido ou não)
         
         ;-----------Escreve as coisas do menu do jogo------------
         mov bl, 0000_1010b 
         mov al, 1
         mov dh, 0 ;Y
         mov dl, 0 ;X
-        mov bp, offset menuStr
+        mov bp, offset menuStr  ;"1. menu"
         call writestrpagews
         
         mov dh, 1 ;Y
         mov dl, 0 ;X
-        mov bp, offset filedisplay
+        mov bp, offset filedisplay  ;"2. "
         call writestrpagews  
         
-        call EscritaSimbolos
+        call EscritaSimbolos  ;"2. F1 F2 F3 ....."
         
         mov dh, 2 ;Y
         mov dl, 0 ;X
-        mov bp, offset zonadetexto
+        mov bp, offset zonadetexto  ;"3. "
         call writestrpagews 
         
-        cmp GameINI, 1
-        jnz LoopRandomWord
-        mov dh, mouseposgamey
-        mov dl, mouseposgamex 
-        call selcursorpos
+        cmp GameINI, 1          ;Verifica basicamente se é a primeira vez que venho aqui ou se vim do menu
+        jnz LoopRandomWord      ;
+        mov dh, mouseposgamey   ;Caso tenha vindo do menu então tenho que devolver o cursor à posição onde estava quando
+        mov dl, mouseposgamex   ;estava a escrever as palavras aleatórias durante o jogo
+        call selcursorpos       ;
         ;---------------------------------------------------------          
        LoopRandomWord:  
         
-        call mouseMenuOrFile ;(devolve 0 a 7 para di dependendo da localização do click)
-                             ;(Ou vai para o menu)
+        call mouseMenuOrFile    ;devolve 0 a 7 para di dependendo da localização do click (Isto caso seja escolhido um ficheiro)
+                                ;Ou vai para o menu
         
-        cmp di, -2
-        jz Game_inic
-        cmp di, -3
-        jz EndLoopRandomWord
-        mov bx, di
-        inc bx
-        cmp bl, nhandler
-        ja LoopRandomWord
-        cmp bl, 1
-        jl LoopRandomWord 
+        cmp di, -2              ;Vindo do menu logo volta ao inicio para poder restaurar a posição do cursor e atualizar os ficheiros
+        jz Game_inic            ;
+                    
+        cmp di, -3              ;Finalizar jogo
+        jz EndLoopRandomWord    ;
         
-        shl di, 1  ;converter para um numero par
+        mov bx, di              ;
+        inc bx                  ;
+        cmp bl, nhandler        ;Verificar se o valor que veio da seleção do ficheiro não é maior do que deveria
+        ja LoopRandomWord       ;caso seja volta atrás para escolher menu ou ficheiros
+        cmp bl, 1               ;
+        jl LoopRandomWord       ;
         
-        call GetDate
-        mov bx, handlers[di]
-        call GetFileSize 
-        call random
+        shl di, 1               ;converter para um numero par (necessário para o vector de handlers)
         
-        mov dx, randomNum
-        dec dx 
-        mov bx, handlers[di]
-        call fGetWord
+        call GetDate            ;Vai buscar a data e hora do sistema (põe num vetor)
+        mov bx, handlers[di]    ;
+        call GetFileSize        ;Vai encontrar o tamanho do Ficherio selecionado 
+        call random             ;Gera uma palavra aleatória (põe em randomNum)
         
-        mov si, 0
-        call sizebuffer 
+        mov dx, randomNum       ;
+        dec dx                  ;decrementa pois o numero é de 1 a Filesize e o ficheiro começa em 0
+        mov bx, handlers[di]    ;vai buscar uma palavra ao ficheiro a partir desse numero aleatório (põe no buffer)
+        call fGetWord           ;
         
-        mov wordSize, cx
+        mov si, 0               ;
+        call sizebuffer         ;Diz o tamanho da palavra no inicio do buffer (inicio do buffer-> Si= 0)
+        mov wordSize, cx        ;
         
         inc cx
         
         push cx
-        mov bh, currentpage
-        mov ah, 03H
-        int 10h
+        mov bh, currentpage     ;
+        mov ah, 03H             ;vai buscar as coordenadas do cursor
+        int 10h                 ;
         pop cx
         
-        call EscritaSimbolos 
-        call selcursorpos  
+        call EscritaSimbolos    ;Atualiza a segunda linha com os ficheiros 
+        
+        call selcursorpos       ;Põe o cursor nas coordenadas em dx
          
-        add dl, cl
-        cmp dl, 80
-        jl NotPageOverflow
+        add dl, cl              ;
+        cmp dl, 80              ;Prevê se a frase vai exceder o tamanho da página em X
+        jl NotPageOverflow      ;
         
-        inc dh    ;Y
-        cmp dh, 24
-        jz EndLoopRandomWord
+        inc dh    ;Y            ; 
+        cmp dh, 24              ;Prevê se a frase vai exceder o tamanho da página em Y (neste caso acaba o jogo)
+        jz EndLoopRandomWord    ;
         
-        mov al, 1 
-        mov dl, 0 ;X 
-        mov si, 0
-        call writestrpagens
+        mov al, 1               ;
+        mov dl, 0 ;X            ;Para o caso exceder a página em X
+        mov si, 0               ;Vai preparar a escrita no inicio da linha e escrever a palavra do buffer
+        call writestrpagens     ;
         
-        call space
-        ;-----------Escreve a palavra com espaço e enter----------
+        call space              ;Coloca um espaço no ecrã 
+        
+        ;Escreve a palavra no ficheiro caveira com espaço e enter
         push di 
         mov di, wordsize 
         mov buffer[di], ' '
@@ -437,16 +440,19 @@ start:
         mov dx, offset buffer
         call fwrite
         pop di
-        ;--------------------------------------------------------- 
-        jmp LoopRandomWord 
+        
+        jmp LoopRandomWord
+        ;---------------------------------------------------------
+ 
        NotPageOverflow:
        
-        mov al, 0
-        mov si, 0
-        call writestrpagens
+        mov al, 0                ;
+        mov si, 0                ;Escreve a palavra normalmente na mesma linha que a anterior
+        call writestrpagens      ;
         
-        call space
-        ;-----------Escreve a palavra com espaço------------------
+        call space               ;Coloca um espaço no ecrã
+        
+        ;----Escreve a palavra no ficheiro caveira com espaço----
         push di 
         mov di, wordsize 
         mov buffer[di], ' '
@@ -456,99 +462,104 @@ start:
         mov dx, offset buffer
         call fwrite
         pop di
-        ;---------------------------------------------------------
+        
         jmp LoopRandomWord
+        ;---------------------------------------------------------
         
        EndLoopRandomWord:
        
-        call writeDate
+        call writeDate          ;Escreve a data e hora na ultima linha do finheiro caveira
        
-        mov bx, caveirah
-        call fclose 
+        mov bx, caveirah        ;Fecha o finheiro caveira e termina o jogo
+        call fclose             ;
         
         pop di
         ret
       Game endp
 
     ;
-    ;
+    ;MenuGame - Controla as funções de adicionar ficheiros a meio do jogo e de saida
     ;
     
     MenuGame proc
       
-      mov dh, 0
-      mov cx, 2 
-      call clearLines
-      mov bl, 0000_1010b 
-      mov al, 1
-      mov dh, 0 ;Y
-      mov dl, 0 ;X
-      mov bp, offset menugamestraddfile
-      call writestrpagews
-      mov dh, 1 ;Y
-      mov dl, 0 ;X
-      mov bp, offset menugamestrback
-      call writestrpagews
+      mov dh, 0           ;
+      mov cx, 2           ;Limpa as primeiras duas linha do ecrâ
+      call clearLines     ;
+      
+      mov bl, 0000_1010b  ;atributo (letras verdes e fundo preto)
+                          
+      mov al, 1           
+      
+      mov dh, 0 ;Y                        ;
+      mov dl, 0 ;X                        ;Escrita na primeira linha "1. ADDFILE     EXIT"
+      mov bp, offset menugamestraddfile   ;
+      call writestrpagews                 ;
+      
+      mov dh, 1 ;Y                        ;
+      mov dl, 0 ;X                        ;Escrita na segunda linha "2. Back"
+      mov bp, offset menugamestrback      ;
+      call writestrpagews                 ;
      WrongPlaceGM:
      
-      xor ax, ax
-      call click 
-      cmp ah, 01h
-      ja WrongPlaceGM
-      call GameMenuClick
-      cmp ax, -1
-      jz WrongPlaceGM 
+      xor ax, ax                          ;
+      call click                          ;Espera o click numa das opções
+      cmp ah, 01h                         ;compara para ver se é nas primeras duas linhas 
+      ja WrongPlaceGM                     ;(caso não seja então es~tá de certeza fora)
+      call GameMenuClick                  ;Menu onde verifica-se os clicks me cada linha
+      cmp ax, -1                          ;caso devolva -1 então está fora das opções
+      jz WrongPlaceGM                     ;
 
       ret
     MenuGame endp
 
     ;
-    ;
+    ;addFileGameMenu - adiciona um ficheiro a meio do jogo
     ;
     
     addFileGameMenu proc 
       push bx
+                           
+      mov dh, 0            ;
+      mov dl, 15           ;coloca o cursor mais à frente do ADDFILE 
+      call selcursorpos    ;
       
-      mov dh, 0
-      mov dl, 15 
-      call selcursorpos 
+      mov bl, 0000_1010b   ;atributo
+      mov bh, currentpage  ;confirmar pagina atual
+      mov cx, 60           ;numero de vezes que escreve no ecra   
+      mov ah, 09h          ;int de escrita numa linha do ecrã
+      mov al, 00h          ;caracter posto num ecrã de modo a limpar
+      int 10h              ;
       
-      mov bl, 0000_1010b 
-      mov bh, currentpage
-      mov cx, 60  ;numero de vezes que escreve no ecra   
-      mov ah, 09h
-      mov al, 00h ;caracter to display
-      int 10h 
-      
-      verificationloopGM:
-          mov ah, 01h
-          int 16h
-          jnz inserttextGM
-          call clicknoloop
-          cmp ah, 01h
-          jnz verificationloopGM
-          cmp al, 3
-          jl verificationloopGM
-          cmp al, 7
-          jl backbuttonGM
-          jmp verificationloopGM
+      verificationloopGM:             ;
+          mov ah, 01h                 ;
+          int 16h                     ;
+          jnz inserttextGM            ;
+          call clicknoloop            ;
+          cmp ah, 01h                 ;Loop que alterna entre ler o teclado e ler o rato
+          jnz verificationloopGM      ;Sai quando uma tecla é clicada ou quando se carrega no back
+          cmp al, 3                   ;
+          jl verificationloopGM       ;
+          cmp al, 7                   ;
+          jl backbuttonGM             ;
+          jmp verificationloopGM      ;
           
      inserttextGM: 
 
-      mov bx, 0
-      mov cx, 0
-      call readtobuffer
-      call addfile
-      mov ah, 00h
-      int 16h
+      mov bx, 0                       ;
+      mov cx, 0                       ;
+      call readtobuffer               ;Caso uma tecla seja clicada então vai ler o que for escrito para o buffer 
+      call addfile                    ;Vai adicionar o nome desse ficheiro caso exista ou não seja repetido
+      mov ah, 00h                     ;
+      int 16h                         
     	
-     backbuttonGM:
+     backbuttonGM:                    ;Vem para aqui se o back por clicado
       
       pop bx
       ret
     addFileGameMenu endp
       
-      ;            ;
+      ;            
       ; cdir - Navigate to the C:\ directory
       ;
       
@@ -787,7 +798,7 @@ start:
         ret
       addfile endp
      
-	;
+	  ;
     ; delfile - delete file function (from the mastertext.txt and the handlers vector)
     ;
      
@@ -913,7 +924,12 @@ start:
     dumpfilesbuffer endp
 
     ;
-    ;
+    ;fGetWord - Vai buscar uma palavra a um ficheiro selecionado e escreve no buffer.
+    ;    Input:
+    ;      -BX= Handler do ficheiro escolhido.
+    ;      -randomNum= número aletório.
+    ;    Output:
+    ;      -Buffer [DATA] - Palavra aleatória.       
     ;
     
     fGetWord proc 
@@ -994,7 +1010,8 @@ start:
     fGetWord endp
 
     ;
-    ;
+    ;writeDate - Escreve a data e hora no ficheiro caveira.txt 
+    ;(finheiro tem que existir)
     ;
     
     writeDate proc 
@@ -1002,23 +1019,27 @@ start:
       mov di, offset date
       call dateToBuffer
       
-      xor cx, cx
-      mov al, 2 
-      mov bx, caveirah
-      mov dx, 0
-      call fseek
+      xor cx, cx                ;
+      mov al, 2                 ;
+      mov bx, caveirah          ;Coloca o cursor do ficheiro no final do ficheiro
+      mov dx, 0                 ;
+      call fseek                ;
       
-      mov bx, caveirah
-      mov cx, 0
-      mov dx, offset buffer
-      xor ch, ch
-      mov cl, sizedatestring
-      call fwrite 
+      mov bx, caveirah          ;
+      mov cx, 0                 ;
+      mov dx, offset buffer     ;Escreve a string com a data e hora no ficheiro
+      xor ch, ch                ;
+      mov cl, sizedatestring    ;
+      call fwrite               ;
       ret
     writeDate endp
     
     ;
-    ;
+    ;GetFileSize - Devolve o tamnho total do ficheiro escolhido.
+    ;    Input:
+    ;      -BX= Handler do ficheiro escolhido.
+    ;    Output:
+    ;      -filesize= tamanho do ficheiro.
     ;
     
     GetFileSize proc 
@@ -1298,9 +1319,11 @@ start:
         pop ax
         ret
       sizebuffer endp
-
+    
     ;
-    ;
+    ;dateToBuffer - coloca o vetor data e hora no buffer.
+    ;    Output:
+    ;      -Buffer [DATA] - Vetor data. 
     ;
     
     dateToBuffer proc
@@ -1352,7 +1375,11 @@ start:
     dateToBuffer endp
     
     ;
-    ;
+    ; moveToBeginnigOfString - Move o vetor data e hora do final do buffer invertido para o inicio (Função auxiliar de dateToBuffer)
+    ;    Input:
+    ;      -Buffer [DATA] - Vetor data incorreto.
+    ;    Output:
+    ;      -Buffer [DATA] - Vetor data correto.
     ;
     
     moveToBeginnigOfString proc
@@ -1378,7 +1405,12 @@ start:
     moveToBeginnigOfString endp
 
     ;
-    ;
+    ; ReadUntilNnWord - Lê a palavra caracter a caracter do ficherio para o buffer até que o caracter náo pertença à palavra
+    ;                   (Função auxiliar de fGetWord)
+    ;    Input:
+    ;      -BX - Handler do ficheiro 
+    ;    Output:
+    ;      -Buffer [DATA] - palavra aletória.
     ;
     
     ReadUntilNnWord proc
@@ -1397,7 +1429,11 @@ start:
     ReadUntilNnWord endp
 
     ;
-    ;
+    ; readCharPos - Lê o caracter do ficheiro apontado pelo cursor do ficheiro e põe no buffer(Função auxiliar de fGetWord)
+    ;    Input:
+    ;      -BX - Handler do ficheiro 
+    ;    Output:
+    ;      -Buffer [DATA] - caracter.
     ;
     
     readCharPos proc
@@ -1420,7 +1456,9 @@ start:
     readCharPos endp
 
     ;
-    ;
+    ; JumpUntilWord - Slata caracter a caracter no ficherio até que o caracter pertença a uma palavra  (Função auxiliar de fGetWord)                 
+    ;    Input:
+    ;      -BX - Handler do ficheiro.
     ;
     
     JumpUntilWord proc
@@ -1439,7 +1477,9 @@ start:
     JumpUntilWord endp 
      
     ;
-    ;
+    ; ReadUntilNnWord - Salta caracter a caracter no ficherio até que o caracter náo pertença à palavra (Função auxiliar de fGetWord)                   
+    ;    Input:
+    ;      -BX - Handler do ficheiro.
     ;
     
     JumpUntilEndWord proc 
@@ -1619,7 +1659,10 @@ start:
 
 
     ;
-    ;
+    ; EscritaSimbolos - Escreve no ecrã os simbolos dos ficheiros com ou sem atributos (2. F1 F2 F3 ...)
+    ;   Inputs:
+    ;     - di - numero do ficheiro selecionado (0 2 4 6 ...).
+    ;     - Cx - numero de ficheiros abertos.
     ;
     
     EscritaSimbolos proc
@@ -1635,12 +1678,12 @@ start:
 
      LoopEscritaSimbolos: 
      
-      push cx
-      shl cx, 1
-      cmp cx, di
-      jnz notRecolor
-      mov bl, 1010_0000b
-     notRecolor:
+      push cx               ;
+      shl cx, 1             ;
+      cmp cx, di            ;Converte o numero de volta para ser de 0 a 7
+      jnz notRecolor        ;E coloca a cor de fundo ver e da letra preta caso o simbolo corresponda ao ficheiro selecionado
+      mov bl, 1010_0000b    ;
+     notRecolor:            ;
       pop cx
      
       push cx
@@ -1664,12 +1707,12 @@ start:
       pop di
       pop cx 
       
-      mov bl, 0000_1010b  ;por na cor original
-      inc cl            ;incremento de contagem do loop
-      cmp cl, nhandler  ;Verifica se já passamos por todos os handlers 
-      jz Fim_LoopEscritaSimbolos  ;No caso de ser igual é porque já passamos por todos
+      mov bl, 0000_1010b               ;por na cor original
+      inc cl                           ;incremento de contagem do loop
+      cmp cl, nhandler                 ;Verifica se já passamos por todos os handlers 
+      jz Fim_LoopEscritaSimbolos       ;No caso de ser igual é porque já passamos por todos
       
-      jmp LoopEscritaSimbolos  ;No caso de ser diferente é porque não passamos por isso continua o loop
+      jmp LoopEscritaSimbolos          ;No caso de ser diferente é porque não passamos por isso continua o loop
       
      Fim_LoopEscritaSimbolos:
       pop dx
@@ -1714,18 +1757,18 @@ start:
         ret
       enter endp
 
-    ;
-    ;
-    ;
-    
-    space proc 
-      push dx
-      mov ah, 2
-    	mov dl, 32
-    	int 21h
-    	pop dx
-      ret
-    space endp
+      ;
+      ; space - Escreve no ecrã um espaço.
+      ;
+      
+      space proc 
+        push dx
+        mov ah, 2
+      	mov dl, 32
+      	int 21h
+      	pop dx
+        ret
+      space endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
       
@@ -1784,149 +1827,163 @@ start:
         ret 
       clicknoloop endp
 
-    ;
-    ;
-    ;
+      ;
+      ; mouseMenuOrFile - Controla os clicks tal como saidas
+      ;   Output:
+      ;     -di: 0 a 7 dependendo do ficheiro selecionado
+      ;   Caso tenha sido selecionado o menu então pode devolver 
+      ;     -di: -1 (click numa zona inválida)
+      ;     -di: -2 (click em back ou depois de escrita)
+      ;     -di: -3 (Saida do jogo)
+      ;
+      
+      mouseMenuOrFile proc
+        push cx
+        mov bh, currentpage
+        mov ah, 03H
+        int 10h
+        pop cx
+        
+        mov mouseposgamey, dh
+        mov mouseposgamex, dl
+        
+        push bx
+        push ax 
+        push cx
+        push dx
+       WrongPlace:
+        
+        xor ax, ax
+        call click
+        cmp ah, 01h
+        ja WrongPlace
+        call FileOrMenuClick 
+        cmp ax, -1
+        jz WrongPlace
+        
+        cmp ax, -2
+        jnz OtherAX
+        mov di, ax
+        jmp mouseMenuOrFile_end
+       OtherAX:
+        cmp ax, -3
+        jnz mouseMenuOrFile_end
+        mov di, ax
+       mouseMenuOrFile_end:  
+       
+        pop dx
+        pop cx 
+        pop ax
+        pop bx
+        ret
+      mouseMenuOrFile endp
+      
+      ;
+      ; FileOrMenuClick - Verifica e controla as funções a executar dependendo da opção selecionada (ficheiros ou menu)
+      ;   Output:
+      ;     -di: 0 a 7 dependendo do ficheiro selecionado
+      ;   Caso tenha sido selecionado o menu então pode devolver 
+      ;     -di: -1 (click numa zona inválida)
+      ;
+      
+      FileOrMenuClick proc 
+        cmp ah, 00h
+        jz clkline1
+        
+        xor cx, cx 
+        mov dl, 3
+       clkLine2:
+        cmp al, dl
+        jz clkFileGame
+        inc dl
+        cmp al, dl
+        jz clkFileGame
+        add dl, 2
+        inc cx
+        cmp cx, 7
+        jna clkLine2
+        jmp WrongCol
+        
+       clkline1:
+        cmp al, 7
+        ja WrongCol
+        jmp clkMenuGame
+        
+       WrongCol:
+        mov ax, -1 
+       
+        jmp FileOrMenuClick_end  
+        
+       clkMenuGame:
+        call MenuGame
+        jmp FileOrMenuClick_end
+        
+       clkFileGame: 
+        mov di, cx
+        
+       FileOrMenuClick_end: 
+        ret  
+      FileOrMenuClick endp
     
-    mouseMenuOrFile proc
-      push cx
-      mov bh, currentpage
-      mov ah, 03H
-      int 10h
-      pop cx
+      ;
+      ; GameMenuClick - Verifica e controla as funções a executar dependendo da opção selecionada (ADDFILE, EXIT ou Back)
+      ;   Output:
+      ;     -di: 0 a 7 dependendo do ficheiro selecionado
+      ;   Caso tenha sido selecionado o menu então pode devolver 
+      ;     -di: -1 (click numa zona inválida)
+      ;     -di: -2 (click em back ou depois de escrita)
+      ;     -di: -3 (Saida do jogo)
+      ;
       
-      mov mouseposgamey, dh
-      mov mouseposgamex, dl
-      
-      push bx
-      push ax 
-      push cx
-      push dx
-     WrongPlace:
-      
-      xor ax, ax
-      call click
-      cmp ah, 01h
-      ja WrongPlace
-      call FileOrMenuClick 
-      cmp ax, -1
-      jz WrongPlace
-      
-      cmp ax, -2
-      jnz OtherAX
-      mov di, ax
-      jmp mouseMenuOrFile_end
-     OtherAX:
-      cmp ax, -3
-      jnz mouseMenuOrFile_end
-      mov di, ax
-     mouseMenuOrFile_end:  
-     
-      pop dx
-      pop cx 
-      pop ax
-      pop bx
-      ret
-    mouseMenuOrFile endp 
-    
-
-    
-    ;
-    ;
-    ;
-    
-    FileOrMenuClick proc 
-      cmp ah, 00h
-      jz clkline1
-      
-      xor cx, cx 
-      mov dl, 3
-     clkLine2:
-      cmp al, dl
-      jz clkFileGame
-      inc dl
-      cmp al, dl
-      jz clkFileGame
-      add dl, 2
-      inc cx
-      cmp cx, 7
-      jna clkLine2
-      jmp WrongCol
-      
-     clkline1:
-      cmp al, 7
-      ja WrongCol
-      jmp clkMenuGame
-      
-     WrongCol:
-      mov ax, -1 
-     
-     jmp FileOrMenuClick_end  
-      
-     clkMenuGame:
-      call MenuGame
-      jmp FileOrMenuClick_end
-      
-     clkFileGame: 
-      mov di, cx
-      
-     FileOrMenuClick_end: 
-      ret  
-    FileOrMenuClick endp
-    
-    ;
-    ;
-    ;
-    
-    GameMenuClick proc 
-      cmp ah, 00h
-      jz clkline1GM
-      
-     clkLine2GM:
-      cmp al, 3
-      jl WrongColGM
-      cmp al, 7
-      jl clkBackGame
-      jmp WrongColGM
-      
-     clkline1GM:
-      cmp al, 3
-      jl WrongColGM
-      cmp al, 11
-      jl clkADDFileGame
-      cmp al, 16
-      jl WrongColGM
-      cmp al, 19
-      ja WrongColGM
-      jmp clkExitGame
-      
-     WrongColGM:
-      mov ax, -1 
-     
-     jmp GameMenuClick_end  
-      
-     clkADDFileGame:
-      call addFileGameMenu
-      mov dh, 0
-      mov cx, 2
-      call clearLines
-      mov ax, -2
-      jmp GameMenuClick_end
-      
-     clkExitGame:
-      mov ax, -3
-      jmp GameMenuClick_end
-      
-     clkBackGame:
-      mov dh, 0
-      mov cx, 2 
-      call clearLines
-      mov ax, -2
-      jmp GameMenuClick_end
-      
-     GameMenuClick_end: 
-      ret  
-    GameMenuClick endp
+      GameMenuClick proc 
+        cmp ah, 00h
+        jz clkline1GM
+        
+       clkLine2GM:
+        cmp al, 3
+        jl WrongColGM
+        cmp al, 7
+        jl clkBackGame
+        jmp WrongColGM
+        
+       clkline1GM:
+        cmp al, 3
+        jl WrongColGM
+        cmp al, 11
+        jl clkADDFileGame
+        cmp al, 16
+        jl WrongColGM
+        cmp al, 19
+        ja WrongColGM
+        jmp clkExitGame
+        
+       WrongColGM:
+        mov ax, -1 
+       
+       jmp GameMenuClick_end  
+        
+       clkADDFileGame:
+        call addFileGameMenu
+        mov dh, 0
+        mov cx, 2
+        call clearLines
+        mov ax, -2
+        jmp GameMenuClick_end
+        
+       clkExitGame:
+        mov ax, -3
+        jmp GameMenuClick_end
+        
+       clkBackGame:
+        mov dh, 0
+        mov cx, 2 
+        call clearLines
+        mov ax, -2
+        jmp GameMenuClick_end
+        
+       GameMenuClick_end: 
+        ret  
+      GameMenuClick endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1967,7 +2024,9 @@ start:
     random endp
 
     ;
-    ;
+    ; GetDate - Coloca a data e hora do sistema num vetor date.
+    ;   Output:
+    ;     -date[data] - vetor com data atualizada do sistema.
     ;
      
     GetDate proc
@@ -2004,7 +2063,7 @@ start:
     GetDate endp 
 
       ;
-      ; ifword - 
+      ; ifword - Verifica se o caracter dado na posição de no offset de memória DS:DI é de uma palavra
       ;
       
       ifword proc
